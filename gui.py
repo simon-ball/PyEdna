@@ -165,8 +165,7 @@ class Gui(object):
 if __name__ == '__main__':
     
     g = Gui()
-    g.folder = r"C:\Users\simoba\Documents\_work\NTNUIT\2019-03-29 - Edna\Round 2\Files from Frode\Test Data"
-    g.load_directory()
+
         
 
 
