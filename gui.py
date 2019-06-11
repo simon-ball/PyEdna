@@ -29,6 +29,8 @@ class Gui(object):
     def init_values(self):
         # Working folder: start in the user folder. This should be OS agnostic
         self.folder = os.environ["USERPROFILE"] or os.path.join(os.environ['HOMEDRIVE'], os.environ['HOMEPATH'])
+        self.have_data1 = False
+        self.have_data2 = False
         pass
     
     def init_ui_elements(self):
@@ -51,7 +53,7 @@ class Gui(object):
         # Two more complicated elements are defined in separate classes
         self.main_title = tk.Label(self.upper_1, text="Stress-Life Test", font="-size 18")
         self.main_title.grid(row=0, column=0, sticky="n")
-        self.upper_tree = TTKTree(self.upper_1) # define more complicated element in a separate class
+        self.upper_tree = TTKTree(self, self.upper_1) # define more complicated element in a separate class
         self.b_directory = tk.Button(self.upper_1, text="Find Directory", command=self.button_load_directory)
         self.b_directory.grid(row=3,column=0,sticky="nsew")
         
@@ -69,7 +71,7 @@ class Gui(object):
         self.upper_2.grid_columnconfigure(0, weight=1)
         self.upper_2.grid_columnconfigure(1, weight=1)
         
-        self.upper_results = OutputBox(self.upper_3)
+        self.upper_results = OutputBox(self, self.upper_3)
         
         # Now that the widgets are in the 3 upper frames, arrrange the 3 upper frames within the "outer" upper frame
         self.upper_1.grid(row=0, column=0, sticky="nsew")
@@ -120,6 +122,11 @@ class Gui(object):
         # This should open a directory search box, and both expand the tree to that location
         # and load that directory same as choosing a directory in the tree
         self.folder = filedialog.askdirectory()
+        self.load_directory()
+        self.upper_tree.go_to_selected_folder(self.folder)
+        pass
+    
+    def load_directory(self, **kwargs):
         self.upper_files.delete(0,"end") # Remove previous contents
         items = os.listdir(self.folder)
         test_files = [f for f in items if "."+f.split(".")[-1] in SUFFIX]
@@ -129,18 +136,39 @@ class Gui(object):
     
     def button_merge(self, **kwargs):
         print("Merge")
+        # Tis should be greyed out unless both self.have_data1 and self.have_data2 are True
         pass
+    def chkst_button(self):
+        # TODO: should include Merge in first check
+        state = self.have_data1 and self.have_data2
+        if state:
+            self.upper_results.b_compare['state'] = "normal"
+        else:
+            self.upper_results.b_compare['state'] = "disabled"
+        state = self.have_data1 and self.have_data2
+        for button in [self.upper_results.b_analysis, self.upper_results.b_graph, self.upper_results.b_report]:
+            if state:
+                button['state'] = "normal"
+            else:
+                button['state'] = 'disabled'
+        pass
+
     
     def button_load1(self, **kwargs):
         self.read_test_file(self.lower_data1_data)
+        self.have_data1 = True
+        self.chkst_button()
         pass
     
     def button_load2(self, **kwargs):
         self.read_test_file(self.lower_data2_data)
+        self.have_data2 = True
+        self.chkst_button()
         pass
 
     def read_test_file(self, destination):
         '''Based on a selected entry in self.upper_files, load and insert into the requested data box'''
+        # TODO - this should have some kind of validation of the file, in addition to just reading out the pure text
         destination.delete(0,"end") # Remove previous contents
         index = self.upper_files.curselection()[0]
         file_name = self.upper_files.get(index)

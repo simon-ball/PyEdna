@@ -5,10 +5,11 @@ import os
 
 class TTKTree(object):
     #https://pyinmyeye.blogspot.com/2012/07/tkinter-tree-demo.html
-    def __init__(self, parent):
+    def __init__(self, parent, frame):
+        self.frame = frame
         self.parent = parent
         self.data_cols = ('fullpath', 'type', 'size')
-        self.tree = ttk.Treeview(parent, columns=self.data_cols, displaycolumns='size')
+        self.tree = ttk.Treeview(self.frame, columns=self.data_cols, displaycolumns='size')
         self._ui_elements()
         self._populate_root()
         
@@ -24,16 +25,17 @@ class TTKTree(object):
         self.tree.column('size', stretch=0, width=70)
         
         # add tree and scrollbars to frame
-        self.tree.grid(in_=self.parent, row=1, column=0, sticky="nsew")
-        ysb.grid(in_=self.parent, row=1, column=1, sticky="ns")
-        xsb.grid(in_=self.parent, row=2, column=0, sticky="ew")
+        self.tree.grid(in_=self.frame, row=1, column=0, sticky="nsew")
+        ysb.grid(in_=self.frame, row=1, column=1, sticky="ns")
+        xsb.grid(in_=self.frame, row=2, column=0, sticky="ew")
         
         # set frame resizing priorities
-        self.parent.rowconfigure(1, weight=1)
-        self.parent.columnconfigure(0, weight=1)
+        self.frame.rowconfigure(1, weight=1)
+        self.frame.columnconfigure(0, weight=1)
         
         # action to perform when a node is expanded
         self.tree.bind('<<TreeviewOpen>>', self._update_tree)
+        self.tree.bind('<<TreeviewSelect>>', self.select_folder)
         
     def _populate_root(self):
         # use all mountpoints as root nodes
@@ -58,7 +60,7 @@ class TTKTree(object):
                 # directory - only populate when expanded
                 # (see _create_treeview() 'bind')
                 cid =self.tree.insert(parent, 'end', text=child,
-                                      values=[cpath, 'directory'])
+                                      values=[cpath, 'directory'], tags=cpath)
                 
                 # add 'dummy' child to force node as expandable
                 self.tree.insert(cid, 'end', text='dummy')  
@@ -95,4 +97,60 @@ class TTKTree(object):
                 self._populate_tree(nodeId, path, os.listdir(path))
 
 
-        
+    def select_folder(self, event):
+        '''Selecting a directory within the file tree should have the same 
+            effect as directly opening one via the load directory button'''
+        curFocus = self.tree.focus()
+        item = self.tree.item(curFocus)['values'][0]
+        self.parent.folder = item
+        self.parent.load_directory()
+    
+    def go_to_selected_folder(self, folder):
+        # Automatically open the tree to the requested folder
+        # Since the tree is populated lazily - i.e. as it is navigated,
+        # the folder might not yet have been found
+        # In that case, start at the root and go there
+        # This function might be helpful
+        # https://stackoverflow.com/questions/46176129/searching-in-treeview-and-highlight-select-the-row-that-contains-the-item-that-i
+        found = self.tree.tag_has(folder) # either returns False or a list of items matching that tag
+        if found:
+            # Open that item and all its parents
+            item = found[0]
+            self.open_selected_folder(item)
+        else:
+            # TODO - this case doesn't work yet
+            # Identify the largest fraction of the path that DOES exist in the tree: this will have dummy children
+            # Startting at that largest path, open that node (triggering self._update_tree), and go ontwards from there
+            '''
+            #go to the beginning and work your way in
+            # identify the closest folder known about, and work down the path from there
+            head = os.path.split(folder)[0]
+            tail = os.path.split(folder)[1]
+            found = self.tree.tag_has(head)
+            if not found:
+                # Still haven't found a directory we've heard of -> step further back
+                if not tail:
+                    # We're at the root directory and still not found it
+                    # We're lost, stop there
+                    print("Folder not found")
+                else:
+                    self._populate_tree(found[0], head, os.listdir(head))
+                    self.go_to_selected_folder(head)
+            else:
+                # We've found this directory, but not visited it ->  populate it
+                self._populate_tree(found[0], folder, os.listdir(folder))
+                self.go_to_selected_folder(folder)
+            '''
+            pass
+                
+        pass
+    
+    def open_selected_folder(self, item):
+        # Open all the way to the item and select it
+        # TODO: close everything else
+        self.tree.item(item, open=True)
+        self.tree.selection_set(item)
+        while item:
+            item = self.tree.parent(item)
+            self.tree.item(item, open=True)
+        pass
