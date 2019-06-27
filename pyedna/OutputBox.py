@@ -16,17 +16,36 @@ class OutputBox(object):
         self.l_slope.grid(row=2, column=0, sticky="nsew")
         self.t_slope = tk.Text(self.frame, width=10,height=1)
         self.t_slope.grid(row=2, column=1, sticky="nsew")
-        self.quick_results = tk.Listbox(self.frame).grid(row=3, column=0, columnspan=2, sticky="nsew")
+        self.quick_results = tk.Listbox(self.frame)
+        self.quick_results.grid(row=3, column=0, columnspan=2, sticky="nsew")
         
         self.frame.grid_columnconfigure(0, weight=1, uniform="a")
         self.frame.grid_columnconfigure(1, weight=1, uniform="a")
         self.frame.grid_rowconfigure(3, weight=1)
         
     def analyse(self, **kwargs):
-        print("Analyse")
+        d_id = self.parent.selected_data
+        if d_id is not None:
+            title = "=== Data %d ===" % (d_id+1)
+            outstr = self.parent.calc.format_analysis(d_id)
+            self.quick_results.delete(0,"end")
+            self.quick_results.insert("end", title)
+            for line in outstr:
+                self.quick_results.insert("end", line)
+        else:
+            # TODO: some form of warning box instead of silently failing
+            print("Select data first")
+        
     def compare(self, **kwargs):
+        d_id1 = self.parent.selected_data
+        d_id2 = 1-d_id1
         print("Compare")
-    def report(self, **kwargs):
+        
+    def report(self, **kwargs):        
+        d_id = self.parent.selected_data
         print("Report")
+        
     def graph(self, **kwargs):
-        print("Graph")
+        d_id = self.parent.selected_data
+        self.parent.calc.plot_results(d_id)
+        
