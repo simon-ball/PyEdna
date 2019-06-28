@@ -15,6 +15,7 @@ class OutputBox(object):
         self.l_slope = tk.Label(self.frame, text="Slope")
         self.l_slope.grid(row=2, column=0, sticky="nsew")
         self.t_slope = tk.Text(self.frame, width=10,height=1)
+        self.t_slope.bind("<<Modified>>")
         self.t_slope.grid(row=2, column=1, sticky="nsew")
         self.quick_results = tk.Listbox(self.frame)
         self.quick_results.grid(row=3, column=0, columnspan=2, sticky="nsew")
@@ -48,4 +49,18 @@ class OutputBox(object):
     def graph(self, **kwargs):
         d_id = self.parent.selected_data
         self.parent.calc.plot_results(d_id)
+    
+    def user_slope(self, event, **kwargs):
+        '''If the text can be converted to a number, do that
+        If it can't delete it to signal to the user that it's not a valid number'''
+        string = self.t_slope.get("1.0", "end").strip()
+        val = None
+        try:
+            if string != "":
+                val = float(string)
+        except:
+            self.t_slope.delete('1.0','end')
+        self.parent.calc.user_slope = val
+            
+            
         

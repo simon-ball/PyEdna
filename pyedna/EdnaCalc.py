@@ -11,7 +11,7 @@ class EdnaCalc:
         self.parent = parent
         self.data = [None, None]
         self.runout = [None, None]
-        self.user_slope = None      # text3
+        self.user_slope = None      # text3             # This is configured from pyedna.OutputBox
         self.user_thick = None      # text5, ref. thick
         self.user_confidence = None # text8
         # Constants for later comparison
@@ -50,11 +50,13 @@ class EdnaCalc:
                     data[i,0] = np.float(data_str[i,0][1:])
                     data[i,1] = np.float(data_str[i,1])
             if (data<0).any():
-                raise ValueError("A negative number was detected. Please check that you have set the correct runout indicator. PyEdna currently expects '*' or '^'")
+                raise ValueError("A negative number was detected. Please check"\
+                        " that you have set the correct runout indicator."\
+                        " PyEdna currently expects '*' or '^'")
         else:
-            raise NotImplementedError("Currently, the only supported runout \
-              indicators are ('^', '*'). You requested runout indicator\
-              '%s'" % runout)
+            raise NotImplementedError("Currently, the only supported runout"\
+              " indicators are ('^', '*'). You requested runout indicator"\
+              " '%s'" % runout)
         
         self.data[d_id] = data
         self.runout[d_id] = runout
@@ -64,7 +66,6 @@ class EdnaCalc:
     def linear_regression(self, data_id, **kwargs):
         '''Perform a Stress / Lifetime analysis based on a log-normal model.
         
-        # TODO: Account for the user entering a defined slope, and decide on appropriate scope (method or class)
         # TODO: Account for runouts
         # TODO: Account for calculating with epsilon properly
         
@@ -150,7 +151,7 @@ class EdnaCalc:
         s95_alpha, s95_beta = 2*np.sqrt(np.diag(cov))
         # Two standard deviations is (approximately) the 95% boundary (actually 95.45%)
         # TODO - section 3.4 uses a student-t distribution, does scipy?
-        # TODO: convert from sigma-based to percentile based
+        # TODO: convert from sigma-based to percentile based, based on self.user_confidence
         
         results = {"r_squared": r_squared, "stdev":stdev, "slope": beta,
                    "intercept":10**alpha, "delta_sigma": 10**((alpha - edna_value)/-beta),
@@ -171,13 +172,14 @@ class EdnaCalc:
     
         
     def Q(self, alpha, beta):
-        '''Equation 3.32 in Rausand 1981'''
+        '''Equation 3.32 in Rausand 1981, Used for comparison'''
         val = 0
         for k in range(2):
             y = np.log10(self.data[k])[:,0]
             x = np.log10(self.data[k])[:,1]
             val += np.sum(np.square(y - alpha[k] - (beta[k]*x)))
         return val
+    
     def compare(self, d_id_1, d_id_2, **kwargs):
         '''
         Compare two different data sets for compatibility, to give a yes/no 
@@ -219,6 +221,8 @@ class EdnaCalc:
         
         
     def format_analysis(self, d_id, **kwargs):
+        '''Produce a formatted string representation of a linear regression
+        of the data set d_id'''
         results = self.linear_regression(d_id, **kwargs)
         rsq = results["r_squared"]
         stdev = results["stdev"]
@@ -233,7 +237,6 @@ class EdnaCalc:
         return outstr
     
     def plot_results(self, d_id, **kwargs):
-        results = self.linear_regression(d_id)
         N = self.data[d_id][:,0]
         S = self.data[d_id][:,1]
         
@@ -267,7 +270,7 @@ class EdnaCalc:
 if __name__ == '__main__':
     filepath1 = r"C:\Users\simoba\Documents\_work\NTNUIT\2019-03-29 - Edna\Round 2\Files from Frode\Test Data\test1.sn"
     filepath2 = r"C:\Users\simoba\Documents\_work\NTNUIT\2019-03-29 - Edna\Round 2\Files from Frode\Test Data\test1.sn"
-    import ednalib as edna
+    
     ec = EdnaCalc()
     ec.read_data_file(filepath1, 0, runout='*',debug=True)
     ec.read_data_file(filepath2, 1, runout='*',debug=True)
@@ -275,6 +278,7 @@ if __name__ == '__main__':
     ec.plot_results(0)
     
 #    # Cardinal
+#    import ednalib as edna
 #    print("\n---- Cardinal----\n")
 #    sn1 = np.genfromtxt( filepath1, delimiter=',', skip_header=2)
 #    (Slog, Nlog, tkk) = edna.datainn(sn1, 0, 0, 0 )
