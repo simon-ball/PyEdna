@@ -2,6 +2,8 @@
 import tkinter.ttk as ttk
 import psutil
 import os
+import time
+import pathlib
 
 class TTKTree(object):
     #https://pyinmyeye.blogspot.com/2012/07/tkinter-tree-demo.html
@@ -10,6 +12,7 @@ class TTKTree(object):
         self.parent = parent
         self.data_cols = ('fullpath', 'type', 'size')
         self.tree = ttk.Treeview(self.frame, columns=self.data_cols, displaycolumns='size')
+        self.items = []
         self._ui_elements()
         self._populate_root()
         
@@ -41,46 +44,45 @@ class TTKTree(object):
         # use all mountpoints as root nodes
         for dev in psutil.disk_partitions():
             path = dev.mountpoint
+            path = pathlib.Path(path)
             parent = self.tree.insert('', 'end', text=path,
-                                  values=[path, 'directory'])
-            self._populate_tree(parent, path, os.listdir(path))
+                                  values=[path, 'directory'], tags=path.parts)
+            self.items.append(parent)
+            self._populate_tree(parent, path)
 
-        
-    def _populate_tree(self, parent, fullpath, children):
+
+
+    def _populate_tree(self, parent, fullpath):
         # parent   - id of node acting as parent
-        # fullpath - the parent node's full path 
+        # fullpath - the parent node's full path  as a Path object
         # children - list of files and sub-directories
         #            belonging to the 'parent' node
-        
+        children = os.listdir(fullpath)
         for child in children:
             # build child's fullpath
-            cpath = os.path.join(fullpath, child).replace('\\', '/')
+            #cpath = os.path.join(fullpath, child).replace('\\', '/')
+            cpath = fullpath / child
     
-            if os.path.isdir(cpath):
+            if cpath.is_dir():
                 # directory - only populate when expanded
                 # (see _create_treeview() 'bind')
                 cid =self.tree.insert(parent, 'end', text=child,
-                                      values=[cpath, 'directory'], tags=cpath)
+                                      values=[cpath, 'directory'], tags=cpath.parts)
                 
                 # add 'dummy' child to force node as expandable
-                self.tree.insert(cid, 'end', text='dummy')  
+                self.tree.insert(cid, 'end', text='dummy') 
             else:
                 # must be a 'file'
-                size = self._format_size(os.stat(cpath).st_size)
-                self.tree.insert(parent, 'end', text=child,
+                try:
+                    size = self._format_size(os.stat(cpath).st_size)
+                except FileNotFoundError:
+                    size = self._format_size(0)
+                cid = self.tree.insert(parent, 'end', text=child,
                                  values=[cpath, 'file', size])
+            self.items.append(cid)
                 
-    def _format_size(self, size):
-        KB = 1024.0
-        MB = KB * KB
-        GB = MB * KB
-        if size >= GB:
-            return '{:,.1f} GB'.format(size/GB)
-        elif size >= MB:
-            return '{:,.1f} MB'.format(size/MB)
-        elif size >= KB:
-            return '{:,.1f} KB'.format(size/KB)
-        return '{} bytes'.format(size)
+   
+    
     def _update_tree(self, event): #@UnusedVariable
         # user expanded a node - build the related directory 
         nodeId = self.tree.focus()      # the id of the expanded node
@@ -94,7 +96,8 @@ class TTKTree(object):
             if self.tree.item(topChild, option='text') == 'dummy':
                 self.tree.delete(topChild)
                 path = self.tree.set(nodeId, 'fullpath')
-                self._populate_tree(nodeId, path, os.listdir(path))
+                path = pathlib.Path(path)
+                self._populate_tree(nodeId, path)
 
 
     def select_folder(self, event):
@@ -106,51 +109,42 @@ class TTKTree(object):
         self.parent.load_directory()
     
     def go_to_selected_folder(self, folder):
-        # Automatically open the tree to the requested folder
-        # Since the tree is populated lazily - i.e. as it is navigated,
-        # the folder might not yet have been found
-        # In that case, start at the root and go there
-        # This function might be helpful
-        # https://stackoverflow.com/questions/46176129/searching-in-treeview-and-highlight-select-the-row-that-contains-the-item-that-i
-        found = self.tree.tag_has(folder) # either returns False or a list of items matching that tag
-        if found:
-            # Open that item and all its parents
-            item = found[0]
-            self.open_selected_folder(item)
-        else:
-            # TODO - this case doesn't work yet
-            # Identify the largest fraction of the path that DOES exist in the tree: this will have dummy children
-            # Startting at that largest path, open that node (triggering self._update_tree), and go ontwards from there
-            '''
-            #go to the beginning and work your way in
-            # identify the closest folder known about, and work down the path from there
-            head = os.path.split(folder)[0]
-            tail = os.path.split(folder)[1]
-            found = self.tree.tag_has(head)
-            if not found:
-                # Still haven't found a directory we've heard of -> step further back
-                if not tail:
-                    # We're at the root directory and still not found it
-                    # We're lost, stop there
-                    print("Folder not found")
-                else:
-                    self._populate_tree(found[0], head, os.listdir(head))
-                    self.go_to_selected_folder(head)
-            else:
-                # We've found this directory, but not visited it ->  populate it
-                self._populate_tree(found[0], folder, os.listdir(folder))
-                self.go_to_selected_folder(folder)
-            '''
-            pass
+        '''
+        Parameters
+        ----------
+        folder : pathlib.Path
+        '''
+        head = pathlib.Path(folder.parts[0], folder.parts[1])
+        for item in self.items:
+            try:
+                path = pathlib.Path(self.tree.item(item)['values'][0])
                 
-        pass
+                if path.samefile(folder):
+                    self.tree.see(item)
+                    self.tree.focus(item)
+                    self.tree.selection_set(item)
+                    self.tree.event_generate('<<TreeviewOpen>>', when="now")
+                    break
+                elif str(path) in str(folder):
+                    # On the right track
+                    self.tree.focus(item)
+                    self.tree.event_generate('<<TreeviewOpen>>', when="now")
+                else:
+                    pass
+            except Exception as e:
+                pass
+                
+
     
-    def open_selected_folder(self, item):
-        # Open all the way to the item and select it
-        # TODO: close everything else
-        self.tree.item(item, open=True)
-        self.tree.selection_set(item)
-        while item:
-            item = self.tree.parent(item)
-            self.tree.item(item, open=True)
-        pass
+    def _format_size(self, size):
+        KB = 1024.0
+        MB = KB * KB
+        GB = MB * KB
+        if size >= GB:
+            return '{:,.1f} GB'.format(size/GB)
+        elif size >= MB:
+            return '{:,.1f} MB'.format(size/MB)
+        elif size >= KB:
+            return '{:,.1f} KB'.format(size/KB)
+        return '{} bytes'.format(size)
+        

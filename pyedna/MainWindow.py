@@ -8,6 +8,7 @@ Created on Thu Jun  6 09:58:26 2019
 import tkinter as tk
 import tkinter.filedialog as filedialog
 import os
+import pathlib
 
 import pyedna
 
@@ -116,9 +117,13 @@ class MainWindow(object):
         # that location and load that directory same as choosing a directory in
         # the tree
         # TODO: expanding tree to desired location
-        self.folder = filedialog.askdirectory()
-        self.load_directory()
-        self.upper_tree.go_to_selected_folder(self.folder)
+        self.folder = pathlib.Path(filedialog.askdirectory())
+        try:
+            self.load_directory()
+            self.upper_tree.go_to_selected_folder(self.folder)
+        except IndexError:
+            # This happens if the file dialog is closed without selection
+            self.folder = None
         self.chkst_button()
         pass
     
