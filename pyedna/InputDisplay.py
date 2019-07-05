@@ -14,7 +14,7 @@ class InputDisplay(object):
         self.path.grid(row=1, sticky="nsew")
         
         self.data = tk.Listbox(self.frame)
-        self.data.bind("<<ListboxSelect>>", self.select)
+        self.data.bind("<FocusIn>", self.select)
         self.data.grid(row=2, sticky="nesw")
     
         
@@ -24,6 +24,9 @@ class InputDisplay(object):
     
     
     def select(self, event, **kwargs):
-        # Indicate to PyEdna that this listbox is selected
-        self.parent.selected_data = self.id
-        self.parent.chkst_button()
+        '''Select this data as the primary focus in PyEdna
+        ONly do so if some data has already been loaded into this listbox 
+        (== data has been loaded into EdnaCalc too)'''
+        if self.data.size() != 0:
+            self.parent.selected_data = self.id
+            self.parent.chkst_button()

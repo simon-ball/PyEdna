@@ -14,9 +14,12 @@ class EdnaCalc:
         self.user_slope = None      # text3             # This is configured from pyedna.OutputBox
         self.user_thick = None      # text5, ref. thick
         self.user_confidence = None # text8
+        self.merge = False
+        self.epsilon = 0.05 # denoting 95% confidence level, TODO: configurable
         # Constants for later comparison
         self.ymin = 1e-10
         self.ymax = 1e10
+        
         
         
     def read_data_file(self, file_path, d_id, **kwargs):
@@ -37,7 +40,7 @@ class EdnaCalc:
         header = kwargs.get("header_lines", 2)
         
 
-        if runout_marker in ("*", "^"):
+        if runout_marker in ("*", "^", "&"):
             data_str = np.genfromtxt(file_path, delimiter=delim, skip_header=header, usecols=(0,1), dtype=str)
             data = np.zeros(data_str.shape)
             runout = np.zeros(np.max(data.shape))
@@ -52,7 +55,7 @@ class EdnaCalc:
             if (data<0).any():
                 raise ValueError("A negative number was detected. Please check"\
                         " that you have set the correct runout indicator."\
-                        " PyEdna currently expects '*' or '^'")
+                        " PyEdna currently expects '*', '^', or '&'")
         else:
             raise NotImplementedError("Currently, the only supported runout"\
               " indicators are ('^', '*'). You requested runout indicator"\
@@ -62,7 +65,26 @@ class EdnaCalc:
         self.runout[d_id] = runout
 
 
+
+    def get_data(self, data_id=0, **kwargs):
+        '''A single point for handling selection of data, merging/unmerging, etc'''
+        ignore_merge = kwargs.get("ignore_merge", False)
+        if type(data_id) == int:
+            if self.data[data_id] is None:
+                raise ValueError("A dataset matching id '%d' has not yet been loaded" % data_id)
+            if self.merge and not ignore_merge:
+                if self.data[0] is None or self.data[1] is None:
+                    raise NotImplementedError("You have attempted to merge datasets without providing a second dataset")
+        if (not self.merge) or (self.merge and ignore_merge):
+            # i.e. use the specifically requested data set
+            data = self.data[data_id]
+        else:
+            #i.e. merge all available datasets:
+            data = np.concatenate(self.data, axis=0)
+        return data
         
+        
+    
     def linear_regression(self, data_id, **kwargs):
         '''Perform a Stress / Lifetime analysis based on a log-normal model.
         
@@ -98,36 +120,67 @@ class EdnaCalc:
         '''
         # Handle kwargs
         debug = kwargs.get("debug", False)
-        user_slope = kwargs.get("user_slope", None)
-        epsilon = kwargs.get("epsilon", 0.05)
-        
-        # Test that the requested data_id exists:
-        if self.data[data_id] is None:
-            raise ValueError("A dataset matching id '%d' has not yet been loaded" % data_id)
-        
+        computer_slope = kwargs.get("computer_slope", None) # This is used by self.compare()
+        computer_intercept = kwargs.get("computer_intercept", None) # This is used by self.compare()
         
         # Define useful constants
         # Don't know *why* they're useful right now, but they are used repeatedly throughout Edna's code
+        # THis might be a direct transcription of 2pi? Can't see why, but my best guess. 
         edna_value = 6.30103
         
-        # Extract data
-        S = self.data[data_id][:, 0] # Stress
-        N = self.data[data_id][:, 1] # Lifetime
-        
+        # Select the correct group of data, handling emrging as required. 
+        data = self.get_data(data_id, **kwargs)
+        if debug:
+            print(data)
+        S = data[:, 0] # Stress
+        N = data[:, 1] # Lifetime
         # Make a substitution to match a simple linear model
         # In this substitution, we want to find alpha = log10(intercept)
         # and beta = gradient
         x = np.log10(S)
         y = np.log10(N)
+        
         def model(x, alpha, beta):
+            '''Simple linear model'''
             return alpha + (beta*x)
         
         # TODO! The model is only valid for non-runout, so filter those out first
         
         # Perform a simple linear regression to find intercept and gradient
         # using scipy.optimize.curve_fit.
-        initial_guess = [1, 1]
-        params, cov = scipy.optimize.curve_fit(model, x, y, initial_guess)
+        # WOrk with any constraints provided by redefining the model to catch the correct number of constraints
+        if self.user_slope is not None:
+            # User has specified a value for the slope, therefore constrain this from changing
+            def model(x, alpha):
+                return alpha + (self.user_slope*x)
+            initial_guess = [1]
+        elif computer_slope is not None and computer_intercept is not None:
+            # Slope and intercept both specified for self.compare()
+            # TODO TODO: THis is a special case, because there are NO degrees of freedom, so curve_fit will throw a hissy fit
+            initial_guess = (computer_intercept, computer_slope)
+            limits = ([computer_intercept-2*np.spacing(1), computer_slope-2*np.spacing(1)], [computer_intercept+np.spacing(1), computer_slope+np.spacing(1)])
+            dof = 0
+        elif computer_slope is not None:
+            # Mechanical specified slope parameter, used by self.compare()
+            initial_guess = [1, computer_slope]
+            limits = ([-np.inf, computer_slope-2*np.spacing(1)], [np.inf, computer_slope+np.spacing(1)])
+            dof = 1
+        elif self.user_thick is not None:
+            raise NotImplementedError
+        else:
+            initial_guess = [1, 1]
+            limits = (-np.inf, np.inf)
+            dof = 2
+        try:
+            dof = len(initial_guess)
+            params, cov = scipy.optimize.curve_fit(model, x, y, initial_guess, bounds=limits)
+        except ValueError as e:
+            print(e)
+            print(initial_guess)
+            print(limits)
+            print(self.user_slope)
+            print(computer_slope)
+            print(computer_intercept)
         # params: [alpha, beta], the values which minimise least-squares
         # cov: covariance matrix, the variance of [params] is the diagonal
         # np.diag(cov)
@@ -136,7 +189,6 @@ class EdnaCalc:
         # Estimate the variance of the observations y_i around the model
         residuals = model(x, *params) - y
         num_points = y.size
-        dof = len(params)
         residual_sum_of_squares = np.sum(np.square(residuals))
         total_sum_of_squares = np.sum(np.square(y - np.mean(y)))
         variance = residual_sum_of_squares / (num_points - dof)
@@ -148,37 +200,27 @@ class EdnaCalc:
         # Confidence intervals for alpha, beta
         alpha, beta = params
         sigma_alpha, sigma_beta = np.sqrt(np.diag(cov))
-        s95_alpha, s95_beta = 2*np.sqrt(np.diag(cov))
+        s95_alpha, s95_beta = scipy.stats.norm.ppf(1-self.epsilon, 0, 1)*np.sqrt(np.diag(cov))
+        # Use of the ppf - convert from sigma to percentile
         # Two standard deviations is (approximately) the 95% boundary (actually 95.45%)
-        # TODO - section 3.4 uses a student-t distribution, does scipy?
         # TODO: convert from sigma-based to percentile based, based on self.user_confidence
+        # TODO: work out where the value of "edna_value" comes from
         
         results = {"r_squared": r_squared, "stdev":stdev, "slope": beta,
                    "intercept":10**alpha, "delta_sigma": 10**((alpha - edna_value)/-beta),
                    "variance":variance, "points":num_points, "dof":dof}
         # It's unclear what this delta_sigma represents, but Edna calculates it
         
+        # Design curve
         
         #Test code
         if debug:
             print("Quick results")
-            print("Goodness of fit: %.4f" % r_squared)
-            print("Stdev: %.4f" % np.sqrt(variance))
-            print("Slope b: %.4f" % (beta))
-            print("Intercept c: %.4f" % (10**alpha))
-            print("Delta Sigma (2e6): %.4f" % 10**((alpha - edna_value)/-beta))
-        
+            for key in results:
+                print(f"{key}: {results['key']}")
         return results
     
-        
-    def Q(self, alpha, beta):
-        '''Equation 3.32 in Rausand 1981, Used for comparison'''
-        val = 0
-        for k in range(2):
-            y = np.log10(self.data[k])[:,0]
-            x = np.log10(self.data[k])[:,1]
-            val += np.sum(np.square(y - alpha[k] - (beta[k]*x)))
-        return val
+    
     
     def compare(self, d_id_1, d_id_2, **kwargs):
         '''
@@ -195,29 +237,75 @@ class EdnaCalc:
             if self.data[idx] is None:
                 raise ValueError("Cannot compare two datasets because dataset (%s) are not yet loaded" % idx)
         
-        results1 = self.linear_regression(d_id_1)
-        results2 = self.linear_regression(d_id_2)
+        results1 = self.linear_regression(d_id_1, ignore_merge=True)
+        results2 = self.linear_regression(d_id_2, ignore_merge=True)
         
         # Step 1: test whether the variances can be assumed different or not
+        # Section 3.8.1, page 18
         var1 = results1["variance"]
         var2 = results2["variance"]
         m_dof1 = results1['points'] - results1['dof']
         m_dof2 = results2['points'] - results2['dof']
         
-        variances_different = var1/var2 < 1 / scipy.stats.f.isf(0.05/2, m_dof1, m_dof2)
-        
+        # Null hypothesis: variances are equal
+        # We REJECT the null hypothesis if either statement is True
+        # Therefore, we ACCEPT hypothesis if NOT (either statement is True)
+        variances_equal = not (var1/var2 > scipy.stats.f.isf(self.epsilon/2, m_dof1, m_dof2)) or \
+                                (var1/var2 < 1/scipy.stats.f.isf(self.epsilon/2, m_dof2, m_dof1))
+
         # Step 2: test whether SN curves are parallel
+        # Section 3.8.2, page 20
+        temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], ignore_merge=True)
+        m_dof2 = temp_results['points'] - temp_results['dof']
+        RSS = self.Q((results1['intercept'], results2['intercept']), (results1['slope'], results2['slope']))
+        RSS_H1 = self.Q((results1['intercept'], temp_results['intercept']), (results1['slope'], temp_results['slope']))
+        #I don't think this is quite right, I think we have to recalculate results where the two slopes are forced to be equal - that requires changes to self.linear_regression
         
-    
+        # Null hypothesis (1): curves are parallel
+        # We REJECT the null hypothesis (1) if the conditional statement is TRUE
+        # Therefore, we ACCEPT the null hypothesis (1) if NOT(statement is True)
+        curves_parallel = not (((RSS_H1 - RSS)/RSS) * (m_dof1 + m_dof2) > scipy.stats.f.isf(self.epsilon, 1, m_dof1 + m_dof2))
         
-        RSS_H1 = self.Q((results1['intercept'], results2['intercept']), (results1['slope'], results2['slope']))
-        RSS = self.Q((results1['intercept'], results2['intercept']), (results1['slope'], results1['slope'])) # note, slope2=slope1
-        curves_parallel = ((RSS_H1 - RSS)/RSS) * (m_dof1 + m_dof2) > scipy.stats.f.isf(0.05, 1, m_dof1 + m_dof2)
+        
+        # Step 3: test whether the two curves are _equal_
+        # Section 3.8.4, page 22
+        # Note: this is not the same as curves_parallel AND variances_equal, because
+        # that does not respect the confidence interval of the combined test.
+        temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], computer_intercept = results1['intercept'], ignore_merge=True)
+        m_dof2 = temp_results['points'] - temp_results['dof']
+        RSS_H5 = self.Q((results1['intercept'], temp_results['intercept']), (results1['slope'], temp_results['slope']))
+        
+        # Null hypothesis (5): slope and intercepts are equal
+        # We REJECT the null hypothesis (5) if the conditional statement is True
+        # We ACCEPT the null hypothesis (5) if NOT(statement is True)
+        curves_equal = not ( ((RSS_H5 - RSS)/RSS) * ((m_dof1 + m_dof2)/2) > scipy.stats.f.isf(self.epsilon, 2, m_dof1+m_dof2))
+        
         
         if debug:
-            print(variances_different)
+            print(variances_equal)
             print(curves_parallel)
-        # TODO!
+            print(curves_equal)
+        return variances_equal, curves_parallel, curves_equal
+    
+        
+    
+    def Q(self, alpha, beta):
+        '''Equation 3.32 in Rausand 1981, Used for comparison
+        
+        Parameters
+        ----------
+        alpha : tuple
+            The intercepts of data set 0 and dataset 1, respectively, calculated from self.linear_regression()
+        beta : tuple
+            The slopes of data set 0 and 1 respectively, calculated from self.linear_regression()
+        '''
+        val = 0
+        for k in range(2):
+            y = np.log10(self.data[k])[:,0]
+            x = np.log10(self.data[k])[:,1]
+            val += np.sum(np.square(y - alpha[k] - (beta[k]*x)))
+        return val
+      
         
         
     def format_analysis(self, d_id, **kwargs):
@@ -229,21 +317,42 @@ class EdnaCalc:
         slope = results["slope"]
         intercept = results["intercept"]
         ds = results["delta_sigma"]
-        outstr = (f"R squared:  {rsq:3g}",
+        if self.merge:
+            d_id = "merged"
+        else:
+            d_id +=1
+        outstr = (f"=== Data {d_id} ===" ,
+                f"R squared:  {rsq:3g}",
                 f"Std. Dev:  {stdev:3g}", 
                 f"Slope:  {slope:3g}",
                 f"Intercept:  {intercept:3g}",
                 f"Delta Sigma (2e6):  {ds:3g}")
         return outstr
     
-    def plot_results(self, d_id, **kwargs):
-        N = self.data[d_id][:,0]
-        S = self.data[d_id][:,1]
+    
+    
+    def format_compare(self, d_id1, d_id2, **kwargs):
+        '''Produce a formatter string representation of a comparison'''
+        var_equal, curv_para, curv_equal = self.compare(d_id1, d_id2, **kwargs)
+        outstr = (f"=== Comparing data {d_id1+1} to {d_id2+1} ===",
+                  f"Variances equal : {var_equal}",
+                  f"Curves parallel: {curv_para}",
+                  f"Curves equal: {curv_equal}")
+        return outstr
+
+
+    
+    def plot_results(self, data_id, **kwargs):
+        data = self.get_data(data_id, ignore_merge=False)
+        print(data)
+
+        S = data[:, 0] # Stress
+        N = data[:, 1] # Lifetime
         
         fig, ax = plt.subplots(figsize=(12,9))
         
-        ax.set_xlim(1e2, 1e7)
-        ax.set_ylim(1e1, 1e3)
+#        ax.set_xlim(1e2, 1e7)
+#        ax.set_ylim(1e1, 1e3)
         ax.set_yscale('log')
         ax.set_xscale('log')
         ax.set_xlabel('Number of cycles')
@@ -262,20 +371,23 @@ class EdnaCalc:
         ax.grid(True, which="minor",ls=":")
         ax.grid(True, which="major", axis="x", ls="-", color="black")
         
-        ax.scatter(S, N, marker="x", color="black")
+        ax.scatter(N, S, marker="x", color="black")
         
         plt.show()
         
         
+        
+        
 if __name__ == '__main__':
     filepath1 = r"C:\Users\simoba\Documents\_work\NTNUIT\2019-03-29 - Edna\Round 2\Files from Frode\Test Data\test1.sn"
-    filepath2 = r"C:\Users\simoba\Documents\_work\NTNUIT\2019-03-29 - Edna\Round 2\Files from Frode\Test Data\test1.sn"
+    filepath2 = r"C:\Users\simoba\Documents\_work\NTNUIT\2019-03-29 - Edna\Round 2\Files from Frode\Test Data\test2.sn"
     
     ec = EdnaCalc()
+    ec.merge=False
     ec.read_data_file(filepath1, 0, runout='*',debug=True)
     ec.read_data_file(filepath2, 1, runout='*',debug=True)
     print(ec.format_analysis(0))
-    ec.plot_results(0)
+#    ec.plot_results(0)
     
 #    # Cardinal
 #    import ednalib as edna
@@ -286,3 +398,7 @@ if __name__ == '__main__':
 #    npkt = len(Slog)
 #    foo = edna.analysis1(Slog, Nlog, tkk, npkt)
 #    print(foo)
+#    x = 0.05
+#    inc = scipy.stats.norm.ppf(x, 0, 1)
+#    exc = scipy.stats.norm.ppf(-x, 0, 1)
+#    print(inc)

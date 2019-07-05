@@ -60,7 +60,7 @@ class MainWindow(object):
         
         self.upper_files_title = tk.Label(self.upper_2, text="Data files")
         self.upper_files_title.grid(row=0, column=0, columnspan=2, sticky="nsew")
-        self.b_merge = tk.Button(self.upper_2, text="Merge", command=self.button_merge, state="disabled")
+        self.b_merge = tk.Button(self.upper_2, text="Merge", command=self.button_merge, state="disabled", relief="raised")
         self.b_merge.grid(row=1,column=0,columnspan=2, sticky="nsew")
         self.b_load1 = tk.Button(self.upper_2, text="Set 1", command=self.button_load1, state="disabled")
         self.b_load1.grid(row=2, column=0, sticky="nsew")
@@ -128,17 +128,28 @@ class MainWindow(object):
         pass
     
     def button_merge(self, **kwargs):
+        # Toggle merged status
+        self.calc.merge = not(self.calc.merge)
+        if self.calc.merge:
+            # When the 
+            self.b_merge['text'] = "Unmerge"
+            self.b_merge['relief'] = "sunken"
+        else:
+            self.b_merge['text'] = "Merge"
+            self.b_merge['relief'] = "raised"
         pass
     
     def button_load1(self, **kwargs):
         self.read_test_file(self.lower_data1, 0)
         self.have_data1 = True
+        self.selected_data = 0
         self.chkst_button()
         pass
     
     def button_load2(self, **kwargs):
         self.read_test_file(self.lower_data2, 1)
         self.have_data2 = True
+        self.selected_data = 1
         self.chkst_button()
         pass
     
@@ -183,8 +194,13 @@ class MainWindow(object):
         
         # Both data sets have been loaded
         condition = self.have_data1 and self.have_data2
-        self.set_button_state(self.upper_results.b_compare, condition)
         self.set_button_state(self.b_merge, condition)
+        
+        # Both data sets have been loaded and 1 has been selected and sets are not merged
+        condition =  self.have_data1 and self.have_data2 and (self.selected_data is not None) and not self.calc.merge
+        self.set_button_state(self.upper_results.b_compare, condition)
+        
+        
         pass
     
     def set_button_state(self, button, state):
