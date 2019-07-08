@@ -103,3 +103,5 @@ ENV/
 *.pyc
 *.pyc
 *.pyc
+pyedna/~$mplate_report.docx
+*.tmp
