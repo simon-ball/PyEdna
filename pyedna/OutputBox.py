@@ -1,5 +1,7 @@
 import tkinter as tk
 
+import pyedna
+
 class OutputBox(object):
     def __init__(self, parent, frame):
         self.frame = frame
@@ -53,8 +55,7 @@ class OutputBox(object):
         print("Report")
         
     def graph(self, **kwargs):
-        d_id = self.parent.selected_data
-        self.parent.calc.plot_results(d_id)
+        graph_control = pyedna.GraphWindow(self.parent)
     
     def user_slope(self, event, **kwargs):
         '''If the text can be converted to a number, do that
@@ -70,6 +71,7 @@ class OutputBox(object):
             self.t_slope.delete('1.0','end')
         self.parent.calc.user_slope = val
         print(self.parent.calc.user_slope)
+        # return "break" to prevent the trigger (Return) from also causing \n
         return "break"
             
             

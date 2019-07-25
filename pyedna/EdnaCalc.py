@@ -375,6 +375,10 @@ class EdnaCalc:
         S = data[:, 0] # Stress
         N = data[:, 1] # Lifetime
         
+        
+        # Handle kwargs
+        marker = kwargs.get("marker", "x")
+        
         fig, ax = plt.subplots(figsize=(12,9))
         
 #        ax.set_xlim(1e2, 1e7)
@@ -397,7 +401,7 @@ class EdnaCalc:
         ax.grid(True, which="minor",ls=":")
         ax.grid(True, which="major", axis="x", ls="-", color="black")
         
-        ax.scatter(N, S, marker="x", color="black")
+        ax.scatter(N, S, marker=, color="black")
         
         plt.show()
         
