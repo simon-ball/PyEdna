@@ -17,6 +17,9 @@ class GraphWindow(object):
         * One frame of _how to plot_ (symbols, lines, limits, grid)
         * misc (e.g. make plot button)
     '''
+    ##########################################################################
+    ###############     USER INTERFACE INITIALISATION
+    ##########################################################################
     def __init__(self, parent):
         self.parent = parent
         self.root = tk.Tk()
@@ -26,6 +29,7 @@ class GraphWindow(object):
         self.init_what()
         self.init_how()
         self.init_misc()
+        self.root.mainloop()
         pass
     
     def init_values(self):
@@ -36,6 +40,8 @@ class GraphWindow(object):
         self.plot_conf_reg = tk.BooleanVar()
         self.plot_dc_bs540 = tk.BooleanVar()
         self.plot_dc_ec3 = tk.BooleanVar()
+        
+        self.grid = tk.BooleanVar()
         
         self.symbol = tk.StringVar()
         self.symbol.set("o")
@@ -101,7 +107,7 @@ class GraphWindow(object):
             * Grid
         '''
         self.how_title = tk.Label(self.frame_how, text = "Plotting style")
-        self.how_title.grid(row=0, column=0, columnspan=3)
+        self.how_title.grid(row=0, column=0, columnspan=4)
         
         # Data point symbols - here the variable is directly the Matplotlib marker command
         self.how_subtitle_symbol = tk.Label(self.frame_how, text="Symbol style")
@@ -136,6 +142,12 @@ class GraphWindow(object):
         for i, axl in enumerate(self.bt_axis_limits):
             axl.grid(row=i+2, column=2, sticky="nsw")
             
+        # Grid - be careful of distinction between _tkinter grid_ and _grid to be plotted in graph_
+        self.how_subtitle_grid = tk.Label(self.frame_how, text="Grid")
+        self.how_subtitle_grid.grid(row=1, column=3, sticky="nsew")
+        self.bt_grid = tk.Checkbutton(self.frame_how, text="Grid", variable=self.grid)
+        self.bt_grid.grid(row=2, column=3, sticky="nsw")
+            
     
     def init_misc(self):
         '''Initialise everything else'''
@@ -144,13 +156,22 @@ class GraphWindow(object):
         
         pass
     
+    
+    ##########################################################################
+    ###############     FUNCTIONAL CODE HERE
+    ##########################################################################
+    
     def plot_curve(self):
         '''Triggered by "Plot SN curve" button'''
-        print("Plot!")
+        kwargs = {"marker" : self.symbol,
+                  "line_style" : self.line,
+                  "axis_limit" : self.axis_limit,
+                  "grid" : self.grid, }
+        print("Plot! \n" + str(kwargs))
             
             
 if __name__ == "__main__":
     gui = GraphWindow(None)
-    gui.root.mainloop()
+    gui
         
         
