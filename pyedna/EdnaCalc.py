@@ -13,9 +13,10 @@ class EdnaCalc:
         self.runout = [None, None]
         self.user_slope = None      # text3             # This is configured from pyedna.OutputBox
         self.user_thick = None      # text5, ref. thick
-        self.user_confidence = None # text8
+        self.user_confidence = None # text8, conf
         self.merge = False
         self.epsilon = 0.05 # denoting 95% confidence level, TODO: configurable
+                            # equivalent to "cop" in original?
         # Constants for later comparison
         self.ymin = 1e-10
         self.ymax = 1e10
@@ -38,9 +39,9 @@ class EdnaCalc:
         delim = kwargs.get("delimiter", ",")
         runout_marker = kwargs.get("runout", "*")
         header = kwargs.get("header_lines", 2)
-        
+        runout_markers = ("*", "^", "&")
 
-        if runout_marker in ("*", "^", "&"):
+        if runout_marker in runout_markers:
             data_str = np.genfromtxt(file_path, delimiter=delim, skip_header=header, usecols=(0,1), dtype=str)
             data = np.zeros(data_str.shape)
             runout = np.zeros(np.max(data.shape))
@@ -55,19 +56,19 @@ class EdnaCalc:
             if (data<0).any():
                 raise ValueError("A negative number was detected. Please check"\
                         " that you have set the correct runout indicator."\
-                        " PyEdna currently expects '*', '^', or '&'")
+                        f" PyEdna currently expects one of {runout_markers}")
         else:
             raise NotImplementedError("Currently, the only supported runout"\
-              " indicators are ('^', '*'). You requested runout indicator"\
-              " '%s'" % runout)
+              f" indicators are {runout_markers}. You requested runout indicator"\
+              f" '{runout}'")
         
         self.data[d_id] = data
-        self.runout[d_id] = runout
+        self.runout[d_id] = runout.astype(bool)
 
 
 
     def get_data(self, data_id=0, **kwargs):
-        '''A single point for handling selection of data, merging/unmerging, etc'''
+        '''A single point for handling selection of data, merging/unmerging, handling runouts'''
         ignore_merge = kwargs.get("ignore_merge", False)
         if type(data_id) == int:
             if self.data[data_id] is None:
@@ -78,10 +79,14 @@ class EdnaCalc:
         if (not self.merge) or (self.merge and ignore_merge):
             # i.e. use the specifically requested data set
             data = self.data[data_id]
+            runout = self.runout[data_id]
         else:
             #i.e. merge all available datasets:
             data = np.concatenate(self.data, axis=0)
-        return data
+            runout = np.concatenate(self.runout, axis=0)
+            
+        filtered_data = data[np.invert(runout)]
+        return filtered_data, data
         
         
     
@@ -124,12 +129,10 @@ class EdnaCalc:
         computer_intercept = kwargs.get("computer_intercept", None) # This is used by self.compare()
         
         # Define useful constants
-        # Don't know *why* they're useful right now, but they are used repeatedly throughout Edna's code
-        # THis might be a direct transcription of 2pi? Can't see why, but my best guess. 
-        edna_value = 6.30103
+        log10_2e6 = np.log10(2e6) # approx 6.30103
         
         # Select the correct group of data, handling emrging as required. 
-        data = self.get_data(data_id, **kwargs)
+        data = self.get_data(data_id, **kwargs)[0]
         if debug:
             print(data)
         S = data[:, 0] # Stress
@@ -151,15 +154,19 @@ class EdnaCalc:
         # WOrk with any constraints provided by redefining the model to catch the correct number of constraints
         if self.user_slope is not None:
             # User has specified a value for the slope, therefore constrain this from changing
-            def model(x, alpha):
-                return alpha + (self.user_slope*x)
-            initial_guess = [1]
+            limits = ([-np.inf, self.user_slope-2*np.spacing(1)], [np.inf, self.user_slope+2*np.spacing(1)])
+            initial_guess = [1, self.user_slope]
         elif computer_slope is not None and computer_intercept is not None:
             # Slope and intercept both specified for self.compare()
             # TODO TODO: THis is a special case, because there are NO degrees of freedom, so curve_fit will throw a hissy fit
             initial_guess = (computer_intercept, computer_slope)
-            limits = ([computer_intercept-2*np.spacing(1), computer_slope-2*np.spacing(1)], [computer_intercept+np.spacing(1), computer_slope+np.spacing(1)])
+            limits = ([computer_intercept*0.999, computer_slope-2*np.spacing(1)], [computer_intercept*1.001, computer_slope+2*np.spacing(1)])
             dof = 0
+#            def model(x):
+#                return computer_intercept + (computer_slope*x)
+#            dof=0
+#            initial_guess = []
+#            limits = (-np.inf, np.inf)
         elif computer_slope is not None:
             # Mechanical specified slope parameter, used by self.compare()
             initial_guess = [1, computer_slope]
@@ -172,7 +179,6 @@ class EdnaCalc:
             limits = (-np.inf, np.inf)
             dof = 2
         try:
-            dof = len(initial_guess)
             params, cov = scipy.optimize.curve_fit(model, x, y, initial_guess, bounds=limits)
         except ValueError as e:
             print(e)
@@ -181,6 +187,7 @@ class EdnaCalc:
             print(self.user_slope)
             print(computer_slope)
             print(computer_intercept)
+            return
         # params: [alpha, beta], the values which minimise least-squares
         # cov: covariance matrix, the variance of [params] is the diagonal
         # np.diag(cov)
@@ -202,22 +209,41 @@ class EdnaCalc:
         sigma_alpha, sigma_beta = np.sqrt(np.diag(cov))
         s95_alpha, s95_beta = scipy.stats.norm.ppf(1-self.epsilon, 0, 1)*np.sqrt(np.diag(cov))
         # Use of the ppf - convert from sigma to percentile
-        # Two standard deviations is (approximately) the 95% boundary (actually 95.45%)
-        # TODO: convert from sigma-based to percentile based, based on self.user_confidence
-        # TODO: work out where the value of "edna_value" comes from
         
         results = {"r_squared": r_squared, "stdev":stdev, "slope": beta,
-                   "intercept":10**alpha, "delta_sigma": 10**((alpha - edna_value)/-beta),
+                   "intercept":10**alpha, "delta_sigma": 10**((alpha - log10_2e6)/-beta),
                    "variance":variance, "points":num_points, "dof":dof}
-        # It's unclear what this delta_sigma represents, but Edna calculates it
+        # It's unclear to me what this delta_sigma represents, but Edna calculates it
         
-        # Design curve
+        
+        # Report statistics
+        # No-one has been able to provide me an explanation or reference for 
+        # any of the following statistics beyond the original obscure source code
+        # Therefore, they are engineered together as best as possible but no 
+        # guarantee is offered for accuracy or meaning.
+        
+        # confidence interval for regression line in Analysis Report
+        if self.user_slope is not None:
+            S2s = residual_sum_of_squares / (num_points - dof)
+            temp = 1-(residual_sum_of_squares/sumxx) # TODO: sumxx??
+            r = min(0, temp) # not lower than zero.
+        elif self.user_slope is None and num_points > 2:
+            S2s = residual_sum_of_squares / (num_points - dof)
+            temp = 0 #TODO TODO
+            r = min(0, temp)
+        else:
+            S2s = 0
+            r = 1
+        s = np.sqrt(S2s)
+        rp2 = scipy.stats.t.isf(self.epsilon/2, num_points-dof)
+        s9x = rp2 * s/np.sqrt(num_points)
+        confidence_interval = 2 * s9x
         
         #Test code
         if debug:
             print("Quick results")
-            for key in results:
-                print(f"{key}: {results['key']}")
+            for key in results.keys():
+                print(f"{key}: {results[key]}")
         return results
     
     
@@ -343,7 +369,7 @@ class EdnaCalc:
 
     
     def plot_results(self, data_id, **kwargs):
-        data = self.get_data(data_id, ignore_merge=False)
+        data = self.get_data(data_id, ignore_merge=False)[1]
         print(data)
 
         S = data[:, 0] # Stress
@@ -386,8 +412,9 @@ if __name__ == '__main__':
     ec.merge=False
     ec.read_data_file(filepath1, 0, runout='*',debug=True)
     ec.read_data_file(filepath2, 1, runout='*',debug=True)
-    print(ec.format_analysis(0))
+#    print(ec.format_analysis(0))
 #    ec.plot_results(0)
+    ec.linear_regression(0, debug=True)#, computer_intercept = 2.6e11)
     
 #    # Cardinal
 #    import ednalib as edna
