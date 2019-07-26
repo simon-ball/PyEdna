@@ -19,7 +19,8 @@ TITLE = "PyEdna"
 
 
 class MainWindow(object):
-    def __init__(self):      
+    def __init__(self):  
+        self.root = tk.Tk()    
         self.init_values()
         self.init_ui_elements()
         self.chkst_button()
@@ -35,7 +36,6 @@ class MainWindow(object):
         pass
     
     def init_ui_elements(self):
-        self.root = tk.Tk()
         self.root.title(TITLE)
         # Layout based on guide at 
         # https://stackoverflow.com/questions/36506152/tkinter-grid-or-pack-inside-a-grid

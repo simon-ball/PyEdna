@@ -24,7 +24,7 @@ def format_report(report_filename, results, other, **kwargs):
     filename : path-like
         The path to save the completed report to
     results : dict
-        Output from ednacalc.linear_regression(), the variable names are reused ehre
+        Output from ednacalc.linear_regression(), the variable names are reused here
     other: dict
         Other values required for the report
         TODO: Mostly still TBD
@@ -71,3 +71,8 @@ def format_report(report_filename, results, other, **kwargs):
     document.merge(**to_write)
     document.write(report_filename)
     document.close()
+    
+if __name__ == "__main__":
+    template = "template_report.docx"
+    with MailMerge(template) as document:
+        print(document.get_merge_fields())
