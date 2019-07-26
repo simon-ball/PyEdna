@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.ticker import LogFormatter
 from matplotlib import rcParams as rcp
+import seaborn as sns
 import scipy.optimize
 import scipy.stats
 
@@ -86,7 +87,7 @@ class EdnaCalc:
             runout = np.concatenate(self.runout, axis=0)
             
         filtered_data = data[np.invert(runout)]
-        return filtered_data, data
+        return filtered_data, data, runout
         
         
     
@@ -368,18 +369,90 @@ class EdnaCalc:
 
 
     
-    def plot_results(self, data_id, **kwargs):
-        data = self.get_data(data_id, ignore_merge=False)[1]
-        print(data)
+    def plot_results(self, data_id=0, **kwargs):
+        '''Handle plotting of the S-N curve. 
+        
+        This function is written to match the options available in the VB6 
+        version of Edna. If you require additional customisation, this function 
+        can be modified to accomplish pretty much anything
+        
+        Paramters
+        ---------
+        data_id : int
+            Which data set to plot? If Merge=True, then this parameter can be 
+            ignored
+        marker : str
+            Matplotlib marker codes. Typical values are "o", ".", "x" etc
+            Default is "o"
+        line_style : str
+            Matplotlib line style codes. Valid values are "-", "--", "-.", ":"
+            Default is "-"
+        axis_limits : str
+            What axis limits to apply to graph. May be upper or lower case. 
+            Default value is "auto". Valid values are:
+                "steel"
+                "aluminium"
+                "s"
+                "n"
+                "auto"            
+        grid : boolean
+            Show grid lines or not. Default False
+        plot_points : boolean
+            Plot S-N data points. Default True
+        plot_regression : boolean
+            Plot the regression line or not. Default True
+        plot_points_conf : boolean
+            Plot the confidence interval of the S-N points or not. Default False
+        plot_regression_conf : boolean
+            Plot the confidence interval of the regression line or not. Default False
+        plot_dc_bs540 : boolean
+            Plot the BS540 / NS3472 design curves or not. Default False
+        plot_dc_ec3 : boolean
+            Plot the EC3 design curve or not. Default False
+        
+        Returns
+        -------
+        None
+        '''
+        # Handle kwargs and defaults
+        marker = kwargs.get("marker", "o")
+        line_style = kwargs.get("line_style", "-")
+        axis_limits = kwargs.get("axis_limits", "auto").lower()
+        grid = kwargs.get("grid", False)
+        plot_points = kwargs.get("plot_points", True)
+        plot_regression = kwargs.get("plot_regression", True)
+        plot_points_conf = kwargs.get("plot_points_conf", False)
+        plot_regression_conf = kwargs.get("plot_points_regression", False)
+        plot_dc_bs540 = kwargs.get("plot_dc_bs540", False)
+        plot_dc_ec3 = kwargs.get("plot_dc_ec3", False)
+        
 
-        S = data[:, 0] # Stress
-        N = data[:, 1] # Lifetime
+        # Get the data, and the meaning of kwargs
+        filtered_data, data, runout = self.get_data(data_id, ignore_merge=False)
+        axis_limit_values = {"steel": (0,0),
+                           "aluminium": (0,0),
+                           "s": (0,0),
+                           "n": (0,0),
+                           "auto":(0,0)}
+
+        if axis_limits == "steel":
+            s_lim = (50, 600)
+        elif axis_limits == "aluminium":
+            s_lim = (20, 300)
+        elif 0:
+            pass
         
         
-        # Handle kwargs
-        marker = kwargs.get("marker", "x")
         
-        fig, ax = plt.subplots(figsize=(12,9))
+        
+
+        S = data[:, 0] # Stress : Y axis
+        N = data[:, 1] # Lifetime : X axis
+        
+        
+        
+        figsize = (12, 9) # in inches
+        fig, ax = plt.subplots(figsize=figsize)
         
 #        ax.set_xlim(1e2, 1e7)
 #        ax.set_ylim(1e1, 1e3)
@@ -388,9 +461,9 @@ class EdnaCalc:
         ax.set_xlabel('Number of cycles')
         ax.set_ylabel('Load')
         ax.set_title('Fatigue Lifecycle')
-        ax.yaxis.label.set_fontsize(25)
-        ax.xaxis.label.set_fontsize(25)
-        ax.title.set_fontsize(35)
+        ax.yaxis.label.set_fontsize(int(figsize[0]*2))
+        ax.xaxis.label.set_fontsize(int(figsize[0]*2))
+        ax.title.set_fontsize(int(figsize[1] + figsize[0]*2))
         rcp['axes.titlepad'] = 10
         ax.tick_params(which='major', width=0.00, length=25, labelsize=25)
         ax.tick_params(which='major', pad=0, axis="y", width=0.00, length=5, labelsize=18)
@@ -401,7 +474,7 @@ class EdnaCalc:
         ax.grid(True, which="minor",ls=":")
         ax.grid(True, which="major", axis="x", ls="-", color="black")
         
-        ax.scatter(N, S, marker=, color="black")
+        ax.scatter(N, S, marker="x", color="black")
         
         plt.show()
         
@@ -416,9 +489,10 @@ if __name__ == '__main__':
     ec.merge=False
     ec.read_data_file(filepath1, 0, runout='*',debug=True)
     ec.read_data_file(filepath2, 1, runout='*',debug=True)
+    ec.plot_results(0)
 #    print(ec.format_analysis(0))
 #    ec.plot_results(0)
-    ec.linear_regression(0, debug=True)#, computer_intercept = 2.6e11)
+#    ec.linear_regression(0, debug=True)#, computer_intercept = 2.6e11)
     
 #    # Cardinal
 #    import ednalib as edna
