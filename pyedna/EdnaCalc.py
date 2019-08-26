@@ -23,7 +23,6 @@ class EdnaCalc:
         self.ymax = 1e10
         
         
-        
     def read_data_file(self, file_path, d_id, **kwargs):
         '''Read a text file and determine which, if any, are runouts.
         Insert the resulting data into the appropriate place
@@ -213,7 +212,7 @@ class EdnaCalc:
         
         results = {"r_squared": r_squared, "stdev":stdev, "slope": beta,
                    "intercept":10**alpha, "delta_sigma": 10**((alpha - log10_2e6)/-beta),
-                   "variance":variance, "points":num_points, "dof":dof}
+                   "variance":variance, "points":num_points, "dof":dof, "alpha":alpha}
         # It's unclear to me what this delta_sigma represents, but Edna calculates it
         
         
@@ -387,14 +386,8 @@ class EdnaCalc:
         line_style : str
             Matplotlib line style codes. Valid values are "-", "--", "-.", ":"
             Default is "-"
-        axis_limits : str
-            What axis limits to apply to graph. May be upper or lower case. 
-            Default value is "auto". Valid values are:
-                "steel"
-                "aluminium"
-                "s"
-                "n"
-                "auto"            
+        axis_limits : list
+            (min n, max n, min s, max s)          
         grid : boolean
             Show grid lines or not. Default False
         plot_points : boolean
@@ -409,15 +402,30 @@ class EdnaCalc:
             Plot the BS540 / NS3472 design curves or not. Default False
         plot_dc_ec3 : boolean
             Plot the EC3 design curve or not. Default False
+        font : int
+            Font size in pt
         
+        fig : matplotlib.figure.Figure
+            OPTIONAL: if provided, then the data will be plotted into the
+            provided canvas. If not provided, then a new canvas will be created.
+            Included to allow the plotting logic to be handled here, but the
+            graph be contained within the GraphPlotter class
+        ax : matplotlib.axes._subplots.AxesSubplot
+            OPTIONAL: if provided, then the data will be plotted into the
+            provided canvas. If not provided, then a new canvas will be created.
+            Included to allow the plotting logic to be handled here, but the
+            graph be contained within the GraphPlotter class
+            
         Returns
         -------
         None
         '''
-        # Handle kwargs and defaults
+        ##########################################################
+        ############    Handle args and kwargs
+        
         marker = kwargs.get("marker", "o")
         line_style = kwargs.get("line_style", "-")
-        axis_limits = kwargs.get("axis_limits", "auto").lower()
+        axis_limits = kwargs.get("axis_limits", None)
         grid = kwargs.get("grid", False)
         plot_points = kwargs.get("plot_points", True)
         plot_regression = kwargs.get("plot_regression", True)
@@ -425,59 +433,101 @@ class EdnaCalc:
         plot_regression_conf = kwargs.get("plot_points_regression", False)
         plot_dc_bs540 = kwargs.get("plot_dc_bs540", False)
         plot_dc_ec3 = kwargs.get("plot_dc_ec3", False)
+        font = kwargs.get("font", 12)
+        fig = kwargs.get("fig", None)
+        ax = kwargs.get("ax", None)
         
 
         # Get the data, and the meaning of kwargs
         filtered_data, data, runout = self.get_data(data_id, ignore_merge=False)
-        axis_limit_values = {"steel": (0,0),
-                           "aluminium": (0,0),
-                           "s": (0,0),
-                           "n": (0,0),
-                           "auto":(0,0)}
-
-        if axis_limits == "steel":
-            s_lim = (50, 600)
-        elif axis_limits == "aluminium":
-            s_lim = (20, 300)
-        elif 0:
-            pass
-        
-        
-        
-        
-
+        results = self.linear_regression(data_id, ignore_merge=False)
         S = data[:, 0] # Stress : Y axis
         N = data[:, 1] # Lifetime : X axis
         
         
+        if fig is None:
+            figsize = (12, 9) # in inches
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            figsize = fig.get_size_inches()
+            ax.clear()
         
-        figsize = (12, 9) # in inches
-        fig, ax = plt.subplots(figsize=figsize)
         
-#        ax.set_xlim(1e2, 1e7)
-#        ax.set_ylim(1e1, 1e3)
-        ax.set_yscale('log')
-        ax.set_xscale('log')
-        ax.set_xlabel('Number of cycles')
-        ax.set_ylabel('Load')
+        ##########################################################
+        ############    Format the graph
+        
+        # Set labels
+        ax.set_xlabel("N [cycles]")
+        ax.set_ylabel("S [MPa]")
         ax.set_title('Fatigue Lifecycle')
-        ax.yaxis.label.set_fontsize(int(figsize[0]*2))
-        ax.xaxis.label.set_fontsize(int(figsize[0]*2))
-        ax.title.set_fontsize(int(figsize[1] + figsize[0]*2))
-        rcp['axes.titlepad'] = 10
-        ax.tick_params(which='major', width=0.00, length=25, labelsize=25)
-        ax.tick_params(which='major', pad=0, axis="y", width=0.00, length=5, labelsize=18)
-        ax.tick_params(which='minor', pad=5, direction="in", width=1.00, length=5, labelsize=12)
+        
+        # Set the axis behaviour
+        ax.set_yscale('linear')
+        ax.set_xscale('log')
         ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
         ax.yaxis.set_minor_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
         ax.xaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, pos: '%s' % (str(x)[0] if int(str(x)[0]) < 6 else '')))
-        ax.grid(True, which="minor",ls=":")
-        ax.grid(True, which="major", axis="x", ls="-", color="black")
         
-        ax.scatter(N, S, marker="x", color="black")
+        # Set the axis limits, if any:
+        if axis_limits is not None:
+            ax.set_xlim(axis_limits[0], axis_limits[1])
+            ax.set_ylim(axis_limits[2], axis_limits[3])
         
-        plt.show()
+        # Set font size
+        ax.yaxis.label.set_fontsize(font)
+        ax.xaxis.label.set_fontsize(font)
+        ax.title.set_fontsize(font + 4)
+        ax.tick_params(which='major', axis="x", direction="in", length=5, labelsize=font-2)
+        ax.tick_params(which='major', pad=0, axis="y", direction="in", length=3, labelsize=font-2)
+        ax.tick_params(which='minor', pad=5, direction="in", width=1.00, length=3, labelsize=font-4)
+        rcp['axes.titlepad'] = 10
         
+        # set grid
+        if grid:
+            ax.grid(which="major", ls=":", color="black")
+
+            
+        
+        ##########################################################
+        ############    plot the graph
+        
+        if plot_points:
+            ax.scatter(N, S, marker=marker)
+            for i, is_runout in enumerate(runout):
+                if is_runout:
+                    # handle any runout points by plotting an arrow from the marker 
+                    # pointing to top right
+                    start_x, start_y = N[i], S[i]
+                    len_x = start_x * 0.2
+                    len_y = 20
+                    ax.annotate("", xy=(start_x+len_x, start_y+len_y), xytext=(start_x, start_y), arrowprops=dict(arrowstyle="->"))
+        
+        if plot_regression:
+            intercept = results['intercept'] # on the '''x''' axis, not y axis
+            alpha = results["alpha"]
+            gradient = results['slope']
+            s = np.array([1*np.min(S), 1*np.max(S)])
+            log_s = np.log10(s)
+            log_n = alpha + gradient * log_s
+            n = 10**log_n
+            ax.plot(n, s, linestyle=line_style)
+            
+        if plot_points_conf:
+            # 95%% conf. for given value of S
+            pass
+        
+        if plot_regression_conf:
+            # 95%% conf. for reg. line
+            pass
+        
+        if plot_dc_bs540:
+            # Plot design curves for BS540, NS3472
+            pass
+        
+        if plot_dc_ec3:
+            # Plot design curves for EC3
+            pass
+        pass
         
         
         

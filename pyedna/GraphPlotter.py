@@ -4,21 +4,60 @@ Created on Thu Jul 25 14:48:10 2019
 
 @author: simoba
 """
-
+import numpy as np
 import tkinter as tk
 from matplotlib.backends.backend_tkagg import (
     FigureCanvasTkAgg, NavigationToolbar2Tk)
 # Implement the default Matplotlib key bindings.
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
 
-#import pyedna
+'''
+Plans:
+    * Remove the figure size control, it's just awkward, and the user can get 
+    coarse control by jsut resizing the window
+    
+    * Add back in the Plot button -> rather than real-time adjustment, I think 
+    it's better to have the user set things up how they like and then press go
+    
+    * better handling of the initial default state :
+        * Define a default dictionary at the start?
+        * Plot the default curves on opening?
+        * Results should probably already be calculated, once, unless Frode 
+            confirms a maximum size on datasets
+    
+    * Tight layout (as part of plot?)
+'''
+
+
+import pyedna
 
 # Define the font style used for titles
 FONT = "-size 12"
+PAD = 5
+INCH2CM = 2.54
 
-class GraphWindow(object):
+# define aliases for the axis limit types here
+STEEL = "steel"
+AL = "aluminium"
+NN = "n"
+SS = "s"
+AUTO = "auto"
+
+# Define the limits for arbitrary material types
+# limits are (n_min, n_max, s_min, s_max)
+STEEL_lim = (1e4, 1e7, 50, 600)
+AL_lim = (1e4, 1e7, 20, 300)
+# NN, SS use one user-defined, one auto
+# AUTO uses both auto
+
+# Starting state
+
+
+
+class GraphWindow(tk.Toplevel):
     '''
     General plan:
         * one frame of _what to plot_ (points, regression line, design curves, etc)
@@ -32,7 +71,7 @@ class GraphWindow(object):
     ##########################################################################
     def __init__(self, parent):
         self.parent = parent
-        self.root = tk.Tk()
+        self.root = tk.Toplevel()
         self.root.title("PyEdna")
         self.init_values()
         self.init_frames()
@@ -40,11 +79,17 @@ class GraphWindow(object):
         self.init_how()
         self.init_misc()
         self.init_graph()
-        self.root.mainloop()
+        self.busy_starting = False
+        #Initialise limit_vars values
+
+        
+        
         pass
  
     def init_values(self):
         '''Initialise the values that the various buttoms will rely on'''
+        self.busy_starting = True # Used to prevent callbacks until everything is initialised
+        
         self.plot_points = tk.BooleanVar()
         self.plot_points.set(True)
         self.plot_regression = tk.BooleanVar()
@@ -63,7 +108,28 @@ class GraphWindow(object):
         self.line.set("-")
         
         self.axis_limit = tk.StringVar()
-        self.axis_limit.set("steel")
+        self.axis_limit.set(STEEL)
+        self.axis_limit.trace("w", self.btn_axis_limits_changed)
+        
+        # Keeping track of graph size in cm
+        self.x_size = tk.DoubleVar()
+        self.y_size = tk.DoubleVar()
+        self.x_size.trace("w", self.set_graph_size)
+        self.y_size.trace("w", self.set_graph_size)
+        
+        # Axis limits
+        self.n_min = tk.IntVar()
+        self.n_max = tk.IntVar()
+        self.s_min = tk.IntVar()
+        self.s_max = tk.IntVar()
+        self.limit_vars = (self.n_min, self.n_max, self.s_min, self.s_max)
+        for i, var in enumerate(self.limit_vars):
+            var.set(STEEL_lim[i])
+        
+        self.font_size = tk.IntVar()
+        self.font_size.set(12)
+        
+        
     
     def init_frames(self):
         '''Initialise the frames that hold the various UI elements
@@ -80,13 +146,13 @@ class GraphWindow(object):
         self.frame_what = tk.Frame(self.frame_left, height=250)
         self.frame_how  = tk.Frame(self.frame_left, height=250)
         self.frame_misc = tk.Frame(self.frame_left, height=50)
-        self.frame_what.grid(row=1, column=0, sticky="nsew", pady=5, padx=5)
+        self.frame_what.grid(row=1, column=0, sticky="nsew", pady=PAD, padx=PAD)
         self.frame_what.grid_columnconfigure(0, weight=1) # allow to grow width-wise
-        self.frame_how.grid(row=2, column=0, sticky="nsew", pady=5, padx=5)
+        self.frame_how.grid(row=2, column=0, sticky="nsew", pady=PAD, padx=PAD)
         self.frame_how.grid_columnconfigure(0, weight=1, uniform="how")
         self.frame_how.grid_columnconfigure(1, weight=1, uniform="how")
         self.frame_how.grid_columnconfigure(2, weight=1, uniform="how")
-        self.frame_misc.grid(row=3, column=0, sticky="nsew", pady=5, padx=5)
+        self.frame_misc.grid(row=3, column=0, sticky="nsew", pady=PAD, padx=PAD)
         self.frame_misc.grid_columnconfigure(0, weight=1)
         
         
@@ -105,8 +171,8 @@ class GraphWindow(object):
         
         self.bt_plot_points = tk.Checkbutton(self.frame_what, text="Data points", variable=self.plot_points)
         self.bt_plot_regres = tk.Checkbutton(self.frame_what, text="Regression line", variable=self.plot_regression)
-        self.bt_plot_points_conf = tk.Checkbutton(self.frame_what, text="Conf. for reg. line", variable=self.plot_conf_pt)
-        self.bt_plot_regres_conf = tk.Checkbutton(self.frame_what, text="Conf. for given value S", variable=self.plot_conf_reg)
+        self.bt_plot_points_conf = tk.Checkbutton(self.frame_what, text="95%% conf. for reg. line", variable=self.plot_conf_reg)
+        self.bt_plot_regres_conf = tk.Checkbutton(self.frame_what, text="95%% conf. for given value of S", variable=self.plot_conf_pt)
         self.bt_dc_bs540 = tk.Checkbutton(self.frame_what, text="95% Surv, 97.5% Conf (BS540, NS3472)", variable=self.plot_dc_bs540)
         self.bt_dc_ec3   = tk.Checkbutton(self.frame_what, text="95% Surv, 75% Conf (EC3)", variable=self.plot_dc_ec3)
         
@@ -132,7 +198,7 @@ class GraphWindow(object):
             * Grid
         '''
         self.how_title = tk.Label(self.frame_how, text = "Plotting style", font=FONT)
-        self.how_title.grid(row=0, column=0, columnspan=4)
+        self.how_title.grid(row=0, column=0, columnspan=4, sticky="nsew")
         
         # Data point symbols - here the variable is directly the Matplotlib marker command
         self.how_subtitle_symbol = tk.Label(self.frame_how, text="Symbol style", font=FONT)
@@ -158,11 +224,11 @@ class GraphWindow(object):
         
         # Axis limits
         self.how_subtitle_axis_limits = tk.Label(self.frame_how, text="Axis Limits", font=FONT)
-        self.bt_axis_limits = (tk.Radiobutton(self.frame_how, text="Steel", variable=self.axis_limit, value="steel"),
-                               tk.Radiobutton(self.frame_how, text="Aluminium", variable=self.axis_limit, value="aluminium"),
-                               tk.Radiobutton(self.frame_how, text="N-limits", variable=self.axis_limit, value="n"),
-                               tk.Radiobutton(self.frame_how, text="S-limits", variable=self.axis_limit, value="s"),
-                               tk.Radiobutton(self.frame_how, text="Auto-limits", variable=self.axis_limit, value="auto"),)
+        self.bt_axis_limits = (tk.Radiobutton(self.frame_how, text="Steel", variable=self.axis_limit, value=STEEL),
+                               tk.Radiobutton(self.frame_how, text="Aluminium", variable=self.axis_limit, value=AL),
+                               tk.Radiobutton(self.frame_how, text="N-limits", variable=self.axis_limit, value=NN),
+                               tk.Radiobutton(self.frame_how, text="S-limits", variable=self.axis_limit, value=SS),
+                               tk.Radiobutton(self.frame_how, text="Auto-limits", variable=self.axis_limit, value=AUTO),)
         self.how_subtitle_axis_limits.grid(row=1, column=2, sticky="nsew")
         for i, axl in enumerate(self.bt_axis_limits):
             axl.grid(row=i+2, column=2, sticky="nsw")
@@ -174,12 +240,56 @@ class GraphWindow(object):
         self.bt_grid.grid(row=2, column=3, sticky="nsw")
     
     
+    
 
     
     def init_misc(self):
-        '''Initialise everything else'''
-        self.bt_plot = tk.Button(self.frame_misc, text="Plot SN Curve", command=self.plot_curve)
-        self.bt_plot.grid(row=0, sticky="nsew")
+        '''Initialise figure style handling'''
+        # Everything in here is referred to by linekd variables, therefore nothing needs to be added to self
+        figstyle_title = tk.Label(self.frame_misc, text="Figure Style", font=FONT)
+        figstyle_title.grid(row=0, column=0, columnspan=4, sticky="nsew")
+        
+        # Figure size
+        fig_size_x_label = tk.Label(self.frame_misc, text="N (cm)")
+        fig_size_y_label = tk.Label(self.frame_misc, text="S (cm)")
+        fig_size_x = tk.Entry(self.frame_misc, textvariable=self.x_size)#, validate="focusout", validatecommand=self.set_graph_size)
+        fig_size_y = tk.Entry(self.frame_misc, textvariable=self.y_size)#, validate="focusout", validatecommand=self.set_graph_size)
+        fig_size_x_label.grid(row=2, column=0, sticky="nsw")
+        fig_size_x.grid(row=2, column=1, sticky="nsw")
+        fig_size_y_label.grid(row=2, column=2, sticky="nsw")
+        fig_size_y.grid(row=2, column=3, sticky="nsw")
+        
+        lim_xmin_label = tk.Label(self.frame_misc, text="N (min)")
+        lim_xmax_label = tk.Label(self.frame_misc, text="N (max)")
+        lim_ymin_label = tk.Label(self.frame_misc, text="S (min)")
+        lim_ymax_label = tk.Label(self.frame_misc, text="S (max)")
+        
+        lim_xmin = tk.Entry(self.frame_misc, textvariable=self.n_min, state="disabled")
+        lim_xmax = tk.Entry(self.frame_misc, textvariable=self.n_max, state="disabled")
+        lim_ymin = tk.Entry(self.frame_misc, textvariable=self.s_min, state="disabled")
+        lim_ymax = tk.Entry(self.frame_misc, textvariable=self.s_max, state="disabled")
+        self.limit_entries = (lim_xmin, lim_xmax, lim_ymin, lim_ymax)
+        
+        lim_xmin_label.grid(row=4, column=0, sticky="nsw")
+        lim_xmax_label.grid(row=5, column=0, sticky="nsw")
+        lim_ymin_label.grid(row=4, column=2, sticky="nsw")
+        lim_ymax_label.grid(row=5, column=2, sticky="nsw")
+        
+        lim_xmin.grid(row=4, column=1, sticky="nsew")
+        lim_xmax.grid(row=5, column=1, sticky="nsew")
+        lim_ymin.grid(row=4, column=3, sticky="nsew")
+        lim_ymax.grid(row=5, column=3, sticky="nsew")
+        
+        font_size_label = tk.Label(self.frame_misc, text="Font (pt)")
+        font_size = tk.Entry(self.frame_misc, textvariable=self.font_size, state="normal")
+        
+        font_size_label.grid(row=6, column=0, sticky="nsw")
+        font_size.grid(row=6, column=1, sticky="nsew")
+        
+        self.btn_plot = tk.Button(self.frame_left, text="Plot SN curve", font=FONT, command=self.plot_curve, state="normal")
+        self.btn_plot.grid(row=4, column=0, sticky="nsew", pady=PAD, padx=PAD)
+        
+        # 
         pass
     
     def init_graph(self):
@@ -193,11 +303,65 @@ class GraphWindow(object):
         self.graph_toolbar.update()
         self.graph.get_tk_widget().pack(side="top", fill="both", expand=1)
         
-        self.frame_right.bind("<Configure>", self.resize)
+        self.frame_right.bind("<Configure>", self.graph_resized)
+        
+        self.ax.set_xlabel("N [cycles]")
+        self.ax.set_ylabel("S [MPa]")
+        self.ax.set_title('Fatigue Lifecycle')
+        # TODO: Also set some other style information here even prior to plotting?
     
-    def resize(self, event, **kwargs):
+    def btn_axis_limits_changed(self, *args, **kwargs):
+        '''Possible values are: "steel", "aluminium", "n", "s", "auto".
+        Limits are grouped in a list like so: (n_min, n_max, s_min, s_max)
+        Where auto ranges are required, we have to get the range of data that will be plotted'''
+        # TODO: SHould this happen over in EdnaCalc? The thing is that it is also UI related, including the numbers that should appear
+        if self.parent:
+            data = self.parent.calc.data[self.parent.selected_data] # TODO This will currently ignore merging, probably want a method in ednacalc to provide the relevant data
+        else: #DEBUGGING PURPOSES ONLY
+            data = np.arange(10).reshape(5,2)
+        actual_data_range_limit = np.array(( np.min(data[:,1]), np.max(data[:,1]), np.min(data[:,0]), np.max(data[:,0]) ))
+        actual_data_range_limit *= np.array((0.8, 1.2, 0.8, 1.2)) # give a 20% buffer around
+        limit_type = self.axis_limit.get()
+        if limit_type == STEEL:
+            lims = STEEL_lim
+            states = ["disabled"]*4
+        elif limit_type == AL:
+            lims = AL_lim
+            states = ["disabled"]*4
+        elif limit_type == NN:
+            states = ("normal", "normal", "disabled", "disabled")
+            lims = (self.n_min.get(), self.n_max.get(), actual_data_range_limit[2], actual_data_range_limit[3])
+        elif limit_type == SS:
+            states = ("disabled", "disabled", "normal", "normal")
+            lims = (actual_data_range_limit[0], actual_data_range_limit[1], self.s_min.get(), self.s_max.get())
+        elif limit_type == AUTO:
+            states = ["disabled"]*4
+            lims = actual_data_range_limit
+        for i in range(4):
+            self.limit_entries[i].config(state=states[i])
+            self.limit_vars[i].set(lims[i])
+        
+
+        
+        
+    def graph_resized(self, event, **kwargs):
         '''Callback when graph size changes'''
-        return self.fig.get_size_inches()
+        (x, y) = self.fig.get_size_inches()
+        self.x_size.set(x * INCH2CM)
+        self.y_size.set(y * INCH2CM)
+    
+    def set_graph_size(self, *args, **kwargs):
+        '''callback when graph size setting changed'''
+        # TODO: THis bit doesn't actually work!
+        
+        if self.busy_starting:
+            #print("Callback (pass)")
+            pass
+        else:
+            #print("Callback (change)")
+            x = self.x_size.get() / INCH2CM
+            y = self.y_size.get() / INCH2CM
+            self.fig.set_size_inches(x, y)
     
     ##########################################################################
     ###############     FUNCTIONAL CODE HERE
@@ -210,23 +374,31 @@ class GraphWindow(object):
         standalone if desired'''
         kwargs = {"marker" : self.symbol.get(),
                   "line_style" : self.line.get(),
-                  "axis_limits" : self.axis_limit.get(),
+                  "axis_limits" : [var.get() for var in self.limit_vars],
                   "grid" : self.grid.get(),
                   "plot_points" : self.plot_points.get(),
                   "plot_regression" : self.plot_regression.get(),
                   "plot_points_conf" : self.plot_conf_pt.get(),
                   "plot_regression_conf": self.plot_conf_reg.get(),
                   "plot_dc_bs540" : self.plot_dc_bs540.get(),
-                  "plot_dc_ec3" : self.plot_dc_ec3.get()
+                  "plot_dc_ec3" : self.plot_dc_ec3.get(),
+                  "font": self.font_size.get(),
+                  "fig" : self.fig,
+                  "ax" : self.ax,
                   }
         if self.parent is not None:
             self.parent.calc.plot_results(self.parent.selected_data, **kwargs)
+            self.refresh_graph()
         else:
-            print("Plot! \n" + str(kwargs))   
+            print("Plot! \n" + str(kwargs)) 
+    
+    def refresh_graph(self, *args, **kwargs):
+        self.fig.tight_layout()
+        self.graph.draw()
             
             
 if __name__ == "__main__":
     gui = GraphWindow(None)
-    gui
+    gui.root.mainloop()
         
         
