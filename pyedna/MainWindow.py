@@ -183,27 +183,27 @@ class MainWindow(object):
         '''
         # Directory has been found: self.folder is not none
         condition = self.folder is not None
-        self.set_button_state(self.b_load1, condition)
-        self.set_button_state(self.b_load2, condition)
+        self.set_widget_state(self.b_load1, condition)
+        self.set_widget_state(self.b_load2, condition)
         
         # 1 or more data sets have been loaded and 1 has been selected
         condition = (self.have_data1 or self.have_data2) and (self.selected_data is not None)
-        self.set_button_state(self.upper_results.b_analysis, condition)
-        self.set_button_state(self.upper_results.b_report, condition)
-        self.set_button_state(self.upper_results.b_graph, condition)
+        self.set_widget_state(self.upper_results.b_analysis, condition)
+        self.set_widget_state(self.upper_results.b_report, condition)
+        self.set_widget_state(self.upper_results.b_graph, condition)
         
         # Both data sets have been loaded
         condition = self.have_data1 and self.have_data2
-        self.set_button_state(self.b_merge, condition)
+        self.set_widget_state(self.b_merge, condition)
         
         # Both data sets have been loaded and 1 has been selected and sets are not merged
         condition =  self.have_data1 and self.have_data2 and (self.selected_data is not None) and not self.calc.merge
-        self.set_button_state(self.upper_results.b_compare, condition)
+        self.set_widget_state(self.upper_results.b_compare, condition)
         
         
         pass
     
-    def set_button_state(self, button, state):
+    def set_widget_state(self, button, state):
         '''brief wrapper function to allow calling buttons by True/False instead of strings'''
         if state:
             button['state'] = 'normal'

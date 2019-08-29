@@ -6,6 +6,11 @@ from matplotlib import rcParams as rcp
 import seaborn as sns
 import scipy.optimize
 import scipy.stats
+try:
+    from EdnaLookup import ddist
+except ModuleNotFoundError:
+    from .EdnaLookup import ddist
+    # Messy hack to get around the problem of EdnaCalc possibly being either main or imported
 
 class EdnaCalc:
     def __init__(self, parent=None):
@@ -68,7 +73,31 @@ class EdnaCalc:
 
 
     def get_data(self, data_id=0, **kwargs):
-        '''A single point for handling selection of data, merging/unmerging, handling runouts'''
+        '''A single function for handling selection of data, merging/unmerging,
+        handling runouts
+        
+        Parameters
+        ----------
+        data_id : int (optional)
+            Which dataset to select. If the Merge=True flag is set, this 
+            parameter is ignored
+        ignore_merge : Boolean
+            temporarily ignore the Merge flag, and return exactly the dataset
+            requested
+            
+        Returns
+        -------
+        filtered_data : numpy.ndarray
+            Returns the requested data with all runouts removed
+            S is accessible as filtered_data[:, 0]
+            N is accessible as filtered_data[:, 1]
+        data : numpy.ndarray
+            Returns the requested data with all runouts included. Access
+            is identical to that for filtered data
+        runout : numpy.ndarray
+            1D array as a mask for data. Cell is TRUE where that data point is
+            a runout            
+        '''
         ignore_merge = kwargs.get("ignore_merge", False)
         if type(data_id) == int:
             if self.data[data_id] is None:
@@ -93,9 +122,6 @@ class EdnaCalc:
     def linear_regression(self, data_id, **kwargs):
         '''Perform a Stress / Lifetime analysis based on a log-normal model.
         
-        # TODO: Account for runouts
-        # TODO: Account for calculating with epsilon properly
-        
         Analysis is based on a SINTEF report:
             Statstical ANalysis of Fatigue test data
             Marvin Rausand
@@ -118,10 +144,23 @@ class EdnaCalc:
         A linear regression is applied to the log10 of the input data. If the 
         'debug' flag is set, then results are printed to stdout
         
+        STATUS:
+            (2019-08-01): 
+                Linear regression with no additional keywords correctly analyses
+                all test-cases provided by Frode to the accuracy given by Edna70b
+                
+                Calculating parameters for condifence interval is currently incomplete
+                
+                Linear regression with keywords set does not work correctly, as
+                it uses curve_fit with one or both parameters constrained such 
+                that pcov is invalid. Need to find a better approach to this
+            
+        
         Parameters
         ----------
         data_id : int
             Which data set to perform a linear regression on
+        
         '''
         # Handle kwargs
         debug = kwargs.get("debug", False)
@@ -212,7 +251,8 @@ class EdnaCalc:
         
         results = {"r_squared": r_squared, "stdev":stdev, "slope": beta,
                    "intercept":10**alpha, "delta_sigma": 10**((alpha - log10_2e6)/-beta),
-                   "variance":variance, "points":num_points, "dof":dof, "alpha":alpha}
+                   "variance":variance, "points":num_points, "dof":dof, "alpha":alpha,
+                   "intercept_conf":s95_alpha, "slope_conf":s95_beta}
         # It's unclear to me what this delta_sigma represents, but Edna calculates it
         
         
@@ -222,24 +262,44 @@ class EdnaCalc:
         # Therefore, they are engineered together as best as possible but no 
         # guarantee is offered for accuracy or meaning.
         
+        #Handled around line 1750 in frmhoved.frm
+        
         # confidence interval for regression line in Analysis Report
-        if self.user_slope is not None:
+        mean_logN = np.sum(x)/N.size # Referred to as XMID in frmHoved.frm
+        mean_logS = np.sum(y)/S.size # YMID
+        sumx = np.sum(x)
+        sumy = np.sum(y)
+        sumx2 = np.sum(x**2)
+        sumy2 = np.sum(y**2)
+        sumxy = np.sum(x*y)
+        sumxx = np.sum( (x-mean_logN)**2 ) # sumxx in frmHoved, around line 1735
+        sumyy = np.sum( (y-mean_logS)**2 )
+        if self.user_slope is not None: # user_slope: text3, Valhel, line 1744
             S2s = residual_sum_of_squares / (num_points - dof)
-            temp = 1-(residual_sum_of_squares/sumxx) # TODO: sumxx??
+            temp = 1-(residual_sum_of_squares/sumxx) 
             r = min(0, temp) # not lower than zero.
-        elif self.user_slope is None and num_points > 2:
+        elif self.user_slope is None and num_points > 2: # line 1752
             S2s = residual_sum_of_squares / (num_points - dof)
-            temp = 0 #TODO TODO
+            temp_numerator = (num_points*sumxy) - (sumx*sumy)
+            temp_denominator = np.sqrt( ((num_points * sumy2) - sumy**2) * ((num_points*sumx2) - sumx**2) )
+            temp = temp_numerator / temp_denominator
             r = min(0, temp)
-        else:
+        else: # line 1757
             S2s = 0
             r = 1
         s = np.sqrt(S2s)
+        rp = scipy.stats.t.isf(0.05/2, num_points-dof) # ONly distinction here seems to be that s95 is hardcodes, s9xs is user defined
         rp2 = scipy.stats.t.isf(self.epsilon/2, num_points-dof)
-        s9x = rp2 * s/np.sqrt(num_points)
-        confidence_interval = 2 * s9x
+        s9Xs = rp2 * s/np.sqrt(num_points) # I think that in Edna, this is a placeholder for (future) user-defined epsilon
+        s95s = rp * s / np.sqrt(num_points)
+        des3 = s * ddist(num_points-dof)
         
-        #Test code
+        results["dc_bs540_intercept"] = 10**(alpha-(s95s*np.sqrt(num_points+1))) # frmhoved line 426
+        results["dc_bs540_delta_sigma"] = 10**((alpha - log10_2e6 - (s95s*np.sqrt(num_points+1)) )/-beta)
+        results["dc_ec3_intercept"] = 10**(alpha-des3) # frmhoved line 429
+        results["dc_ec3_delta_sigma"] = 10**((alpha - log10_2e6 - des3)/-beta)
+        
+        #debugging code
         if debug:
             print("Quick results")
             for key in results.keys():
@@ -308,9 +368,9 @@ class EdnaCalc:
         
         
         if debug:
-            print(variances_equal)
-            print(curves_parallel)
-            print(curves_equal)
+            print(f"Variances equal: {variances_equal}")
+            print(f"Curves parallel: {curves_parallel}")
+            print(f"Curves equal: {curves_equal}")
         return variances_equal, curves_parallel, curves_equal
     
         
@@ -352,7 +412,13 @@ class EdnaCalc:
                 f"Std. Dev:  {stdev:3g}", 
                 f"Slope:  {slope:3g}",
                 f"Intercept:  {intercept:3g}",
-                f"Delta Sigma (2e6):  {ds:3g}")
+                f"Delta Sigma (2e6):  {ds:3g}",
+                "",
+                f"Design Curve",
+                f"Intercept C: {results['dc_bs540_intercept']:3g}",
+                f"Delta Sigma (2E6): {results['dc_bs540_delta_sigma']:3g}",
+                f"Intercept C: {results['dc_ec3_intercept']:3g}",
+                f"Delta Sigma (2E6): {results['dc_ec3_delta_sigma']:3g}",)
         return outstr
     
     
@@ -486,7 +552,12 @@ class EdnaCalc:
         if grid:
             ax.grid(which="major", ls=":", color="black")
 
-            
+        def curve(intercept, gradient, s):
+            alpha = np.log10(intercept)
+            log_s = np.log10(s)
+            log_n = alpha + (gradient * log_s)
+            n = 10**log_n
+            ax.plot(n, s, linestyle=line_style)
         
         ##########################################################
         ############    plot the graph
@@ -501,32 +572,27 @@ class EdnaCalc:
                     len_x = start_x * 0.2
                     len_y = 20
                     ax.annotate("", xy=(start_x+len_x, start_y+len_y), xytext=(start_x, start_y), arrowprops=dict(arrowstyle="->"))
-        
+                    
+        curve_s = np.array([1*np.min(S), 1*np.max(S)])
         if plot_regression:
-            intercept = results['intercept'] # on the '''x''' axis, not y axis
-            alpha = results["alpha"]
-            gradient = results['slope']
-            s = np.array([1*np.min(S), 1*np.max(S)])
-            log_s = np.log10(s)
-            log_n = alpha + gradient * log_s
-            n = 10**log_n
-            ax.plot(n, s, linestyle=line_style)
+            curve(results["intercept"], results["slope"], curve_s)
+
             
         if plot_points_conf:
             # 95%% conf. for given value of S
-            pass
+            raise NotImplementedError
         
         if plot_regression_conf:
             # 95%% conf. for reg. line
-            pass
+            raise NotImplementedError
         
         if plot_dc_bs540:
             # Plot design curves for BS540, NS3472
-            pass
+            curve(results["dc_bs540_intercept"], results["slope"], curve_s)
         
         if plot_dc_ec3:
             # Plot design curves for EC3
-            pass
+            curve(results["dc_ec3_intercept"], results["slope"], curve_s)
         pass
         
         
@@ -539,7 +605,7 @@ if __name__ == '__main__':
     ec.merge=False
     ec.read_data_file(filepath1, 0, runout='*',debug=True)
     ec.read_data_file(filepath2, 1, runout='*',debug=True)
-    ec.plot_results(0)
+    ec.plot_results(0, plot_dc_ec3 = True, plot_dc_bs540 = True)
 #    print(ec.format_analysis(0))
 #    ec.plot_results(0)
 #    ec.linear_regression(0, debug=True)#, computer_intercept = 2.6e11)

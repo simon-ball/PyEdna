@@ -4,6 +4,7 @@ from pyedna.InputDisplay import InputDisplay
 from pyedna.MainWindow import MainWindow
 from pyedna.GraphPlotter import GraphWindow
 from pyedna.EdnaCalc import EdnaCalc
+from pyedna.EdnaLookup import ddist
 
 __all__ = ['TTKTree', 'OutputBox', 'InputDisplay', 'MainWindow', 'EdnaCalc',
-           'GraphWindow']
+           'GraphWindow', "ddist"]

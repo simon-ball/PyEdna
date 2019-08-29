@@ -30,3 +30,4 @@ class InputDisplay(object):
         if self.data.size() != 0:
             self.parent.selected_data = self.id
             self.parent.chkst_button()
+            

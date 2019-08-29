@@ -70,7 +70,7 @@ class OutputBox(object):
         except:
             self.t_slope.delete('1.0','end')
         self.parent.calc.user_slope = val
-        print(self.parent.calc.user_slope)
+        #print(self.parent.calc.user_slope)
         # return "break" to prevent the trigger (Return) from also causing \n
         return "break"
             
