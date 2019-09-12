@@ -16,6 +16,7 @@ class EdnaCalc:
     def __init__(self, parent=None):
         self.parent = parent
         self.data = [None, None]
+        self.header = [None, None]
         self.runout = [None, None]
         self.user_slope = None      # text3             # This is configured from pyedna.OutputBox
         self.user_thick = None      # text5, ref. thick
@@ -62,6 +63,11 @@ class EdnaCalc:
                 raise ValueError("A negative number was detected. Please check"\
                         " that you have set the correct runout indicator."\
                         f" PyEdna currently expects one of {runout_markers}")
+            # Now get the header information that Numpy skipped
+            with open(file_path) as file:
+                line1 = file.readline().strip()
+                line2 = file.readline().strip()
+                header = (line1, line2)
         else:
             raise NotImplementedError("Currently, the only supported runout"\
               f" indicators are {runout_markers}. You requested runout indicator"\
@@ -69,6 +75,7 @@ class EdnaCalc:
         
         self.data[d_id] = data
         self.runout[d_id] = runout.astype(bool)
+        self.header[d_id] = header
 
 
 
@@ -179,6 +186,9 @@ class EdnaCalc:
         # Make a substitution to match a simple linear model
         # In this substitution, we want to find alpha = log10(intercept)
         # and beta = gradient
+        # Note also: I have followed the convention in edna, mapping between 
+        # (s <> x) and (N <> y). Beware - this results in "x" being plotted on 
+        # the y axis, and vice-versa. !!Pay close attention to which is which!!
         x = np.log10(S)
         y = np.log10(N)
         
@@ -186,7 +196,6 @@ class EdnaCalc:
             '''Simple linear model'''
             return alpha + (beta*x)
         
-        # TODO! The model is only valid for non-runout, so filter those out first
         
         # Perform a simple linear regression to find intercept and gradient
         # using scipy.optimize.curve_fit.
@@ -253,20 +262,26 @@ class EdnaCalc:
                    "intercept":10**alpha, "delta_sigma": 10**((alpha - log10_2e6)/-beta),
                    "variance":variance, "points":num_points, "dof":dof, "alpha":alpha,
                    "intercept_conf":s95_alpha, "slope_conf":s95_beta}
-        # It's unclear to me what this delta_sigma represents, but Edna calculates it
+        # Delta-sigma is in units [Mpa]
         
         
-        # Report statistics
-        # No-one has been able to provide me an explanation or reference for 
-        # any of the following statistics beyond the original obscure source code
-        # Therefore, they are engineered together as best as possible but no 
-        # guarantee is offered for accuracy or meaning.
+        ####################### Report statistics
+        # No-one has been able to provide me with a specification for the following statistics.
+        # Therefore, they are cobbled together as best I can from reverse engineering the original code
+        # In particular, the reversal of x and y relative to mathematical convention renders 
+        # interpretation considerably more difficult and error prone
+        # When, or if, I am able to get a clearer explanation from the users what it all means and why,
+        # it will be tided up
+        #
+        # Until such time, abandon hope all ye who enter, for here be dragons
+        # Simon Ball, Sept 2019
+        
         
         #Handled around line 1750 in frmhoved.frm
         
         # confidence interval for regression line in Analysis Report
-        mean_logN = np.sum(x)/N.size # Referred to as XMID in frmHoved.frm
-        mean_logS = np.sum(y)/S.size # YMID
+        mean_logN = np.sum(y)/num_points # Referred to as XMID in frmHoved.frm
+        mean_logS = np.sum(x)/num_points # YMID
         sumx = np.sum(x)
         sumy = np.sum(y)
         sumx2 = np.sum(x**2)
@@ -288,17 +303,31 @@ class EdnaCalc:
             S2s = 0
             r = 1
         s = np.sqrt(S2s)
-        rp = scipy.stats.t.isf(0.05/2, num_points-dof) # ONly distinction here seems to be that s95 is hardcodes, s9xs is user defined
+        rp = scipy.stats.t.isf(0.05/2, num_points-dof) # Only distinction here seems to be that s95 is hardcodes, s9xs is user defined
         rp2 = scipy.stats.t.isf(self.epsilon/2, num_points-dof)
         s9Xs = rp2 * s/np.sqrt(num_points) # I think that in Edna, this is a placeholder for (future) user-defined epsilon
         s95s = rp * s / np.sqrt(num_points)
-        des3 = s * ddist(num_points-dof)
-        
-        results["dc_bs540_intercept"] = 10**(alpha-(s95s*np.sqrt(num_points+1))) # frmhoved line 426
+        des3 = s * ddist(num_points-dof) # Used for EC3 design curve
+        rf = scipy.stats.f.isf(self.epsilon, 1, num_points-dof)
+        d0 = 2 * s * np.sqrt(2*rf/num_points) # Used for the confidence interval at the mean value of b/beta
+        d1 = 2 * s * np.sqrt(2*rf / sumyy) # Used for the confidence interval at a mean value of c/alpha
+        pre = 2 * s9Xs * np.sqrt(num_points - dof) ## NOTE the +: this is used in the original code. No idea why. 
+        results["confidence_given_s"] = 2 * pre
+        results["confidence_b"] = d1
+        results["confidence_c"] = d0
+        results["s_lower"] = -beta - (d1*0.5)
+        results["s_upper"] = -beta + (d1*0.5)
+        results["c_lower"] = 10**(alpha-(0.5*d0))
+        results["c_upper"] = 10**(alpha+(0.5*d0))
+        results["regression_confidence"] = 2* s95s # Tis is used in report formatter, a future update may want to make the confidence threshold user configurable, then sqitch to s9x
+        results["mean_stress"] = 10**mean_logS # In units [MPa]
+        results["dc_bs540_intercept"] = 10**(alpha-(s9Xs*np.sqrt(num_points+1))) # frmhoved line 426
         results["dc_bs540_delta_sigma"] = 10**((alpha - log10_2e6 - (s95s*np.sqrt(num_points+1)) )/-beta)
         results["dc_ec3_intercept"] = 10**(alpha-des3) # frmhoved line 429
         results["dc_ec3_delta_sigma"] = 10**((alpha - log10_2e6 - des3)/-beta)
         
+        # Include the confidence interval used
+        results["confidence_interval"] = 1-self.epsilon # recall that epsilon is, e.g., 0.05 for 95%
         #debugging code
         if debug:
             print("Quick results")
@@ -309,13 +338,14 @@ class EdnaCalc:
     
     
     def compare(self, d_id_1, d_id_2, **kwargs):
+        
         '''
         Compare two different data sets for compatibility, to give a yes/no 
         answer to whether they can be merged
         
         # TODO: Validate that the various statistical tests are implemented correctly. 
-        
         '''
+        raise NotImplementedError # TODO
         # Handle kwargs
         debug = kwargs.get("debug", False)
         
@@ -583,7 +613,7 @@ class EdnaCalc:
             raise NotImplementedError
         
         if plot_regression_conf:
-            # 95%% conf. for reg. line
+            # 95%% conf. for reg. line            
             raise NotImplementedError
         
         if plot_dc_bs540:
@@ -602,13 +632,20 @@ if __name__ == '__main__':
     filepath2 = r"C:\Users\simoba\Documents\_work\NTNUIT\2019-03-29 - Edna\Round 2\Files from Frode\Test Data\test2.sn"
     
     ec = EdnaCalc()
+    ec.epsilon = 0.05
     ec.merge=False
     ec.read_data_file(filepath1, 0, runout='*',debug=True)
     ec.read_data_file(filepath2, 1, runout='*',debug=True)
-    ec.plot_results(0, plot_dc_ec3 = True, plot_dc_bs540 = True)
+#    ec.plot_results(0, plot_dc_ec3 = True, plot_dc_bs540 = True)
 #    print(ec.format_analysis(0))
 #    ec.plot_results(0)
-#    ec.linear_regression(0, debug=True)#, computer_intercept = 2.6e11)
+    ec.linear_regression(0, debug=True)#, computer_intercept = 2.6e11)
+
+    from ReportFormatter import format_report
+    name = "test.docx"
+    other = {"header_1":ec.header[0][0], "header_2":ec.header[0][1]}
+    results = ec.linear_regression(0, debug=False)
+    format_report(name, results, other)
     
 #    # Cardinal
 #    import ednalib as edna
