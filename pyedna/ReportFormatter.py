@@ -42,35 +42,49 @@ def format_report(report_filename, results, other, **kwargs):
     
     
     to_write = {}
-    # Data file header information
+    ######### Data file header information
     to_write["header_1"] = other["header_1"]
     to_write["header_2"] = other["header_2"]
     
-    #Input table
+    ######## Input table
     # TODO
     
-    # Output mean curve
-    to_write = {**to_write, **results}
-    to_write['mean_stress'] = other['mean_stress']
-    to_write["confidence_regression"]
-    to_write["confidence_given"]
-    to_write["confidence_b"]
-    to_write["confidence_c"]
-    to_write["s_lower"]
-    to_write["s_lupper"]
-    to_write["c_lower"]
-    to_write["c_lupper"]
+    ######## Output mean curve
+    to_write["slope"] =             f"{results['slope']:3g}"
+    to_write["intercept"] =         f"{results['intercept']:3g}"
+    to_write["log_intercept"] =     f"{results['alpha']:3g}"
+    to_write["delta_sigma"] =       f"{results['delta_sigma']:3g}"
+    to_write["stdev"] =             f"{results['stdev']:3g}"
+    to_write['mean_stress'] =       f"{results['mean_stress']:3g}"
+    to_write["r_squared"] =         f"{results['r_squared']:3g}"
+    to_write["confidence_regression"] = f"{results['regression_confidence']:3g}"
+    to_write["confidence_given_s"] =f"{results['confidence_given_s']:3g}"
+    to_write["confidence_b"] = f"{results['confidence_b']:3g}"
+    to_write["confidence_c"] = f"{results['confidence_c']:3g}"
+    to_write["s_lower"] = f"{results['s_lower']:3g}"
+    to_write["s_upper"] = f"{results['s_upper']:3g}"
+    to_write["c_lower"] = f"{results['c_lower']:3g}"
+    to_write["c_upper"] = f"{results['c_upper']:3g}"
+    
+    # Confidence interval used
+    to_write["epsilon"] = "{}".format(int(100*results["confidence_interval"]))
     
     # Output: Design curve
-    to_write["d_intercept_bs540"]
-    to_write["d_delta2e6_bs540"]
-    to_write["d_intercept_ec3"]
-    to_write["d_delta2e6_ec3"]
+    to_write["dc_bs540_intercept"] =    f"{results['dc_bs540_intercept']:3g}"
+    to_write["dc_bs540_delta_sigma"] =  f"{results['dc_bs540_delta_sigma']:3g}"
+    to_write["dc_ec3_intercept"] =      f"{results['dc_ec3_intercept']:3g}"
+    to_write["dc_ec3_delta_sigma"] =    f"{results['dc_ec3_delta_sigma']:3g}"
+#    
+    with MailMerge(template) as document:
+        fields = document.get_merge_fields()
+        for key in fields:
+            if key not in to_write.keys():
+                to_write[key] = "TODO"
     
-    document = MailMerge(template)
-    document.merge(**to_write)
-    document.write(report_filename)
-    document.close()
+#    document = MailMerge(template)
+        document.merge(**to_write)
+        document.write(report_filename)
+        document.close()
     
 if __name__ == "__main__":
     template = "template_report.docx"
