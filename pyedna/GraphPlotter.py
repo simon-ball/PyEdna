@@ -45,6 +45,7 @@ AL = "aluminium"
 NN = "n"
 SS = "s"
 AUTO = "auto"
+MANUAL = "manual"
 
 # Define the limits for arbitrary material types
 # limits are (n_min, n_max, s_min, s_max)
@@ -171,8 +172,8 @@ class GraphWindow(tk.Toplevel):
         
         self.bt_plot_points = tk.Checkbutton(self.frame_what, text="Data points", variable=self.plot_points)
         self.bt_plot_regres = tk.Checkbutton(self.frame_what, text="Regression line", variable=self.plot_regression)
-        self.bt_plot_points_conf = tk.Checkbutton(self.frame_what, text="95%% conf. for reg. line", variable=self.plot_conf_reg)
-        self.bt_plot_regres_conf = tk.Checkbutton(self.frame_what, text="95%% conf. for given value of S", variable=self.plot_conf_pt)
+        self.bt_plot_points_conf = tk.Checkbutton(self.frame_what, text="95% conf. for reg. line", variable=self.plot_conf_reg)
+        self.bt_plot_regres_conf = tk.Checkbutton(self.frame_what, text="95% conf. for given value of S", variable=self.plot_conf_pt)
         self.bt_dc_bs540 = tk.Checkbutton(self.frame_what, text="95% Surv, 97.5% Conf (BS540, NS3472)", variable=self.plot_dc_bs540)
         self.bt_dc_ec3   = tk.Checkbutton(self.frame_what, text="95% Surv, 75% Conf (EC3)", variable=self.plot_dc_ec3)
         
@@ -228,7 +229,9 @@ class GraphWindow(tk.Toplevel):
                                tk.Radiobutton(self.frame_how, text="Aluminium", variable=self.axis_limit, value=AL),
                                tk.Radiobutton(self.frame_how, text="N-limits", variable=self.axis_limit, value=NN),
                                tk.Radiobutton(self.frame_how, text="S-limits", variable=self.axis_limit, value=SS),
-                               tk.Radiobutton(self.frame_how, text="Auto-limits", variable=self.axis_limit, value=AUTO),)
+                               tk.Radiobutton(self.frame_how, text="Auto limits", variable=self.axis_limit, value=AUTO),
+                               tk.Radiobutton(self.frame_how, text="Manual limits", variable=self.axis_limit, value=MANUAL),
+                               )
         self.how_subtitle_axis_limits.grid(row=1, column=2, sticky="nsew")
         for i, axl in enumerate(self.bt_axis_limits):
             axl.grid(row=i+2, column=2, sticky="nsw")
@@ -250,10 +253,11 @@ class GraphWindow(tk.Toplevel):
         figstyle_title.grid(row=0, column=0, columnspan=4, sticky="nsew")
         
         # Figure size
-        fig_size_x_label = tk.Label(self.frame_misc, text="N (cm)")
-        fig_size_y_label = tk.Label(self.frame_misc, text="S (cm)")
-        fig_size_x = tk.Entry(self.frame_misc, textvariable=self.x_size)#, validate="focusout", validatecommand=self.set_graph_size)
-        fig_size_y = tk.Entry(self.frame_misc, textvariable=self.y_size)#, validate="focusout", validatecommand=self.set_graph_size)
+        # This feature has been deprecated
+#        fig_size_x_label = tk.Label(self.frame_misc, text="N (cm)")
+#        fig_size_y_label = tk.Label(self.frame_misc, text="S (cm)")
+#        fig_size_x = tk.Entry(self.frame_misc, textvariable=self.x_size)#, validate="focusout", validatecommand=self.set_graph_size)
+#        fig_size_y = tk.Entry(self.frame_misc, textvariable=self.y_size)#, validate="focusout", validatecommand=self.set_graph_size)
 #        fig_size_x_label.grid(row=2, column=0, sticky="nsw")
 #        fig_size_x.grid(row=2, column=1, sticky="nsw")
 #        fig_size_y_label.grid(row=2, column=2, sticky="nsw")
@@ -311,7 +315,7 @@ class GraphWindow(tk.Toplevel):
         # TODO: Also set some other style information here even prior to plotting?
     
     def btn_axis_limits_changed(self, *args, **kwargs):
-        '''Possible values are: "steel", "aluminium", "n", "s", "auto".
+        '''Possible values are: "steel", "aluminium", "n", "s", "auto", "manual".
         Limits are grouped in a list like so: (n_min, n_max, s_min, s_max)
         Where auto ranges are required, we have to get the range of data that will be plotted'''
         # TODO: SHould this happen over in EdnaCalc? The thing is that it is also UI related, including the numbers that should appear
@@ -337,6 +341,9 @@ class GraphWindow(tk.Toplevel):
         elif limit_type == AUTO:
             states = ["disabled"]*4
             lims = actual_data_range_limit
+        elif limit_type == MANUAL:
+            states = ["normal"]*4
+            lims = (self.n_min.get(), self.n_max.get(), self.s_min.get(), self.s_max.get())
         for i in range(4):
             self.limit_entries[i].config(state=states[i])
             self.limit_vars[i].set(lims[i])

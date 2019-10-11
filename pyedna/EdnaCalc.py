@@ -528,6 +528,7 @@ class EdnaCalc:
         plot_regression_conf = kwargs.get("plot_points_regression", False)
         plot_dc_bs540 = kwargs.get("plot_dc_bs540", False)
         plot_dc_ec3 = kwargs.get("plot_dc_ec3", False)
+        plot_legend=kwargs.get("plot_legend", True)
         font = kwargs.get("font", 12)
         fig = kwargs.get("fig", None)
         ax = kwargs.get("ax", None)
@@ -560,7 +561,7 @@ class EdnaCalc:
         ax.set_yscale('log')
         ax.set_xscale('log')
         ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
-        ax.yaxis.set_minor_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
+        ax.yaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, pos: '%s' % (str(x)[0] if int(str(x)[0]) < 6 else '')))
         ax.xaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, pos: '%s' % (str(x)[0] if int(str(x)[0]) < 6 else '')))
         
         # Set the axis limits, if any:
@@ -581,18 +582,18 @@ class EdnaCalc:
         if grid:
             ax.grid(which="major", ls=":", color="black")
 
-        def curve(intercept, gradient, s):
+        def curve(intercept, gradient, s, label):
             alpha = np.log10(intercept)
             log_s = np.log10(s)
             log_n = alpha + (gradient * log_s)
             n = 10**log_n
-            ax.plot(n, s, linestyle=line_style)
+            ax.plot(n, s, linestyle=line_style, label=label)
         
         ##########################################################
         ############    plot the graph
         
         if plot_points:
-            ax.scatter(N, S, marker=marker)
+            ax.scatter(N, S, marker=marker, label="Data")
             for i, is_runout in enumerate(runout):
                 if is_runout:
                     # handle any runout points by plotting an arrow from the marker 
@@ -604,7 +605,7 @@ class EdnaCalc:
                     
         curve_s = np.array([1*np.min(S), 1*np.max(S)])
         if plot_regression:
-            curve(results["intercept"], results["slope"], curve_s)
+            curve(results["intercept"], results["slope"], curve_s, label="Regression")
 
             
         if plot_points_conf:
@@ -617,12 +618,13 @@ class EdnaCalc:
         
         if plot_dc_bs540:
             # Plot design curves for BS540, NS3472
-            curve(results["dc_bs540_intercept"], results["slope"], curve_s)
+            curve(results["dc_bs540_intercept"], results["slope"], curve_s, label="BS540, NS3472")
         
         if plot_dc_ec3:
             # Plot design curves for EC3
-            curve(results["dc_ec3_intercept"], results["slope"], curve_s)
-        pass
+            curve(results["dc_ec3_intercept"], results["slope"], curve_s, label="EC3")
+        if plot_legend:
+            ax.legend(fontsize=font)
         
         
         
