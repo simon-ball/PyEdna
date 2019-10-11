@@ -12,7 +12,7 @@ from pyedna import MainWindow
                                                     
 if __name__ == '__main__':
     
-    g = MainWindow()
+    MainWindow()
 
         
 

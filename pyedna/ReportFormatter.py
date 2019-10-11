@@ -4,15 +4,15 @@ Created on Thu Jul  4 14:34:06 2019
 
 @author: simoba
 """
-
 from mailmerge import MailMerge # installed as "docx-mailmerge"
+from pathlib import Path
 
 
 
 
 
 
-def format_report(report_filename, results, other, **kwargs):
+def format_report(report_filename, results, *args, **kwargs):
     ''' Format the results of a linear regression analysis into a prepared
     template
     
@@ -38,13 +38,14 @@ def format_report(report_filename, results, other, **kwargs):
     https://pbpython.com/python-word-template.html
         Discussion of using docx-mailmerge with merge fields in Word
     '''
-    template = "template_report.docx"
+    template_location = Path(__file__).parent
+    template = template_location / "template_report.docx"
     
     
     to_write = {}
     ######### Data file header information
-    to_write["header_1"] = other["header_1"]
-    to_write["header_2"] = other["header_2"]
+    to_write["header_1"] = results["header_1"]
+    to_write["header_2"] = results["header_2"]
     
     ######## Input table
     # TODO
@@ -80,8 +81,6 @@ def format_report(report_filename, results, other, **kwargs):
         for key in fields:
             if key not in to_write.keys():
                 to_write[key] = "TODO"
-    
-#    document = MailMerge(template)
         document.merge(**to_write)
         document.write(report_filename)
         document.close()

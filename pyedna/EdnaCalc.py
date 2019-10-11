@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.ticker import LogFormatter
 from matplotlib import rcParams as rcp
-import seaborn as sns
 import scipy.optimize
 import scipy.stats
 try:
@@ -210,11 +209,7 @@ class EdnaCalc:
             initial_guess = (computer_intercept, computer_slope)
             limits = ([computer_intercept*0.999, computer_slope-2*np.spacing(1)], [computer_intercept*1.001, computer_slope+2*np.spacing(1)])
             dof = 0
-#            def model(x):
-#                return computer_intercept + (computer_slope*x)
-#            dof=0
-#            initial_guess = []
-#            limits = (-np.inf, np.inf)
+
         elif computer_slope is not None:
             # Mechanical specified slope parameter, used by self.compare()
             initial_guess = [1, computer_slope]
@@ -264,6 +259,10 @@ class EdnaCalc:
                    "intercept_conf":s95_alpha, "slope_conf":s95_beta}
         # Delta-sigma is in units [Mpa]
         
+        # Also write some information about the input data to the results
+        results["header_1"] = self.header[data_id][0]
+        results["header_2"] = self.header[data_id][1]
+        
         
         ####################### Report statistics
         # No-one has been able to provide me with a specification for the following statistics.
@@ -280,8 +279,8 @@ class EdnaCalc:
         #Handled around line 1750 in frmhoved.frm
         
         # confidence interval for regression line in Analysis Report
-        mean_logN = np.sum(y)/num_points # Referred to as XMID in frmHoved.frm
-        mean_logS = np.sum(x)/num_points # YMID
+        mean_logN = np.sum(y)/num_points # Referred to as YMID in frmHoved.frm
+        mean_logS = np.sum(x)/num_points # XMID
         sumx = np.sum(x)
         sumy = np.sum(y)
         sumx2 = np.sum(x**2)
@@ -303,15 +302,15 @@ class EdnaCalc:
             S2s = 0
             r = 1
         s = np.sqrt(S2s)
-        rp = scipy.stats.t.isf(0.05/2, num_points-dof) # Only distinction here seems to be that s95 is hardcodes, s9xs is user defined
+        rp = scipy.stats.t.isf(0.05/2, num_points-dof) # Only distinction here seems to be that s95 uses hardcoded confidence, s9xs allows user choice
         rp2 = scipy.stats.t.isf(self.epsilon/2, num_points-dof)
-        s9Xs = rp2 * s/np.sqrt(num_points) # I think that in Edna, this is a placeholder for (future) user-defined epsilon
+        s9Xs = rp2 * s / np.sqrt(num_points) # I think that in Edna, this is a placeholder for (future) user-defined epsilon
         s95s = rp * s / np.sqrt(num_points)
         des3 = s * ddist(num_points-dof) # Used for EC3 design curve
-        rf = scipy.stats.f.isf(self.epsilon, 1, num_points-dof)
+        rf = scipy.stats.f.isf(self.epsilon, 2, num_points-dof)
         d0 = 2 * s * np.sqrt(2*rf/num_points) # Used for the confidence interval at the mean value of b/beta
         d1 = 2 * s * np.sqrt(2*rf / sumyy) # Used for the confidence interval at a mean value of c/alpha
-        pre = 2 * s9Xs * np.sqrt(num_points - dof) ## NOTE the +: this is used in the original code. No idea why. 
+        pre = 2 * s9Xs * np.sqrt(num_points + dof) ## NOTE the +: this is used in the original code. No idea why. 
         results["confidence_given_s"] = 2 * pre
         results["confidence_b"] = d1
         results["confidence_c"] = d0
@@ -319,7 +318,7 @@ class EdnaCalc:
         results["s_upper"] = -beta + (d1*0.5)
         results["c_lower"] = 10**(alpha-(0.5*d0))
         results["c_upper"] = 10**(alpha+(0.5*d0))
-        results["regression_confidence"] = 2* s95s # Tis is used in report formatter, a future update may want to make the confidence threshold user configurable, then sqitch to s9x
+        results["regression_confidence"] = 2* s9Xs # Tis is used in report formatter, a future update may want to make the confidence threshold user configurable, then sqitch to s9x
         results["mean_stress"] = 10**mean_logS # In units [MPa]
         results["dc_bs540_intercept"] = 10**(alpha-(s9Xs*np.sqrt(num_points+1))) # frmhoved line 426
         results["dc_bs540_delta_sigma"] = 10**((alpha - log10_2e6 - (s95s*np.sqrt(num_points+1)) )/-beta)
@@ -558,7 +557,7 @@ class EdnaCalc:
         ax.set_title('Fatigue Lifecycle')
         
         # Set the axis behaviour
-        ax.set_yscale('linear')
+        ax.set_yscale('log')
         ax.set_xscale('log')
         ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
         ax.yaxis.set_minor_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
@@ -636,27 +635,11 @@ if __name__ == '__main__':
     ec.merge=False
     ec.read_data_file(filepath1, 0, runout='*',debug=True)
     ec.read_data_file(filepath2, 1, runout='*',debug=True)
-#    ec.plot_results(0, plot_dc_ec3 = True, plot_dc_bs540 = True)
-#    print(ec.format_analysis(0))
-#    ec.plot_results(0)
+
     ec.linear_regression(0, debug=True)#, computer_intercept = 2.6e11)
 
     from ReportFormatter import format_report
     name = "test.docx"
     other = {"header_1":ec.header[0][0], "header_2":ec.header[0][1]}
     results = ec.linear_regression(0, debug=False)
-    format_report(name, results, other)
-    
-#    # Cardinal
-#    import ednalib as edna
-#    print("\n---- Cardinal----\n")
-#    sn1 = np.genfromtxt( filepath1, delimiter=',', skip_header=2)
-#    (Slog, Nlog, tkk) = edna.datainn(sn1, 0, 0, 0 )
-#    print(tkk)
-#    npkt = len(Slog)
-#    foo = edna.analysis1(Slog, Nlog, tkk, npkt)
-#    print(foo)
-#    x = 0.05
-#    inc = scipy.stats.norm.ppf(x, 0, 1)
-#    exc = scipy.stats.norm.ppf(-x, 0, 1)
-#    print(inc)
+    format_report(name, results)

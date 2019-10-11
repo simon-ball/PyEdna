@@ -5,6 +5,7 @@ from pyedna.MainWindow import MainWindow
 from pyedna.GraphPlotter import GraphWindow
 from pyedna.EdnaCalc import EdnaCalc
 from pyedna.EdnaLookup import ddist
+from pyedna.ReportFormatter import format_report
 
 __all__ = ['TTKTree', 'OutputBox', 'InputDisplay', 'MainWindow', 'EdnaCalc',
            'GraphWindow', "ddist"]

@@ -1,5 +1,4 @@
 import tkinter as tk
-
 import pyedna
 
 class OutputBox(object):
@@ -38,21 +37,31 @@ class OutputBox(object):
             print("Select data first")
         
     def compare(self, **kwargs):
-        d_id1 = self.parent.selected_data
-        if d_id1 is not None:
-            d_id2 = 1-d_id1
-            outstr = self.parent.calc.format_compare(d_id1, d_id2)
-            self.quick_results.delete(0,"end")
-            for line in outstr:
-                self.quick_results.insert("end", line)
-        else:
-            # TODO: some kind of warning box
-            print("Select data first")
-        print("Compare")
+        # TODO: currently this raises a error message
+        tk.messagebox.showwarning("Not yet implemented", "This feature is not implemented yet")
+#        d_id1 = self.parent.selected_data
+#        if d_id1 is not None:
+#            d_id2 = 1-d_id1
+#            outstr = self.parent.calc.format_compare(d_id1, d_id2)
+#            self.quick_results.delete(0,"end")
+#            for line in outstr:
+#                self.quick_results.insert("end", line)
+#        else:
+#            # TODO: some kind of warning box
+#            print("Select data first")
+#        print("Compare")
         
-    def report(self, **kwargs):        
-        d_id = self.parent.selected_data
-        print("Report")
+    def report(self, **kwargs):
+        filename = tk.filedialog.asksaveasfile(mode="w", defaultextension=".docx", filetypes=[("Microsoft Word", ".docx")])
+        if not filename:
+            # The user cancelled the save file dialog
+            pass
+        else:
+            filename = filename.name
+            d_id = self.parent.selected_data
+            results = self.parent.calc.linear_regression(d_id, ignore_merge=True)
+            pyedna.format_report(filename, results)
+
         
     def graph(self, **kwargs):
         graph_control = pyedna.GraphWindow(self.parent)
