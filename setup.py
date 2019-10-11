@@ -34,7 +34,7 @@ setup(
     include_package_data=True,
     keywords='strain analysis',
     name='pyedna',
-    packages=find_packages(include=['opexebo*']),
+    packages=find_packages(include=['pyedna*']),
     url='https://github.com/simon-ball/PyEdna',
     version='0.1',
     zip_safe=False,
