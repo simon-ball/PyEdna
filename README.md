@@ -13,14 +13,14 @@ To do so, [**create an account on GitHub**](https://github.com/join) if you don'
 
 You can use [Git](https://git-scm.com/) to keep your copy of PyEdna up to date. Please be sure to visit [Git's website](https://git-scm.com/) and **download & install Git for your operating system**.
 
-###Installing Python
+### Installing Python
 
 PyEdna is written in Python 3.7. TO run PyEdna on your computer, you will need a local installation of Python 3. Please follow the instructions below to install Python via [**Anaconda distribution**](https://anaconda.org) for your respective operating system:
 
 * [macOS](./mac_conda_install.md)
 * [Windows](./windows_conda_install.md)
 
-###Installing PyEdna
+### Installing PyEdna
 
 #### With Git
 
