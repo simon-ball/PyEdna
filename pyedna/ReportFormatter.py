@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 
-def format_report(report_filename, results, *args, **kwargs):
+def format_report(report_filename, data, runout, results, *args, **kwargs):
     ''' Format the results of a linear regression analysis into a prepared
     template
     
@@ -23,11 +23,14 @@ def format_report(report_filename, results, *args, **kwargs):
     ----------
     filename : path-like
         The path to save the completed report to
+    data : np.ndarray
+        2D array of input data on which the regression was performed
+        Shaped as data[0] = a row, data[:,0] is S, data[:,1] is N
+    runout : np.ndarray
+        1D array of runout status, True where that row was a runout
     results : dict
         Output from ednacalc.linear_regression(), the variable names are reused here
-    other: dict
-        Other values required for the report
-        TODO: Mostly still TBD
+    
         
     Returns
     -------
@@ -48,7 +51,13 @@ def format_report(report_filename, results, *args, **kwargs):
     to_write["header_2"] = results["header_2"]
     
     ######## Input table
-    # TODO
+    # data is a 2xn Numpy array, where data[0] is [S, N], while all S is data[:,0]
+    # Merging into a table is handled slightly differently to single fields
+    # For this, we pass a list of dictionaries, and assign it to the first merge field in the table
+    data_table = []
+    for i, [S, N] in enumerate(data):
+        row = {"data_stress": str(S), "data_number": str(N) + str(int(runout[i])*"**")}
+        data_table.append(row)
     
     ######## Output mean curve
     to_write["slope"] =             f"{results['slope']:3g}"
@@ -77,11 +86,12 @@ def format_report(report_filename, results, *args, **kwargs):
     to_write["dc_ec3_delta_sigma"] =    f"{results['dc_ec3_delta_sigma']:3g}"
 #    
     with MailMerge(template) as document:
-        fields = document.get_merge_fields()
-        for key in fields:
-            if key not in to_write.keys():
-                to_write[key] = "TODO"
+#        fields = document.get_merge_fields()
+#        for key in fields:
+#            if key not in to_write.keys():
+#                to_write[key] = "TODO"
         document.merge(**to_write)
+        document.merge_rows("data_stress", data_table)
         document.write(report_filename)
         document.close()
     

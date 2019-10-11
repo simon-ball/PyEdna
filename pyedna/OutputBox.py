@@ -59,8 +59,9 @@ class OutputBox(object):
         else:
             filename = filename.name
             d_id = self.parent.selected_data
+            _, data, runout = self.parent.calc.get_data(d_id, ignore_merge=True)
             results = self.parent.calc.linear_regression(d_id, ignore_merge=True)
-            pyedna.format_report(filename, results)
+            pyedna.format_report(filename, data, runout, results)
 
         
     def graph(self, **kwargs):

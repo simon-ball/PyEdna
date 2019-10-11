@@ -627,21 +627,3 @@ class EdnaCalc:
             ax.legend(fontsize=font)
         
         
-        
-if __name__ == '__main__':
-    filepath1 = r"C:\Users\simoba\Documents\_work\NTNUIT\2019-03-29 - Edna\Round 2\Files from Frode\Test Data\test1.sn"
-    filepath2 = r"C:\Users\simoba\Documents\_work\NTNUIT\2019-03-29 - Edna\Round 2\Files from Frode\Test Data\test2.sn"
-    
-    ec = EdnaCalc()
-    ec.epsilon = 0.05
-    ec.merge=False
-    ec.read_data_file(filepath1, 0, runout='*',debug=True)
-    ec.read_data_file(filepath2, 1, runout='*',debug=True)
-
-    ec.linear_regression(0, debug=True)#, computer_intercept = 2.6e11)
-
-    from ReportFormatter import format_report
-    name = "test.docx"
-    other = {"header_1":ec.header[0][0], "header_2":ec.header[0][1]}
-    results = ec.linear_regression(0, debug=False)
-    format_report(name, results)
