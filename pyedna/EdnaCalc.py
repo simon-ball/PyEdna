@@ -482,9 +482,13 @@ class EdnaCalc:
             Matplotlib line style codes. Valid values are "-", "--", "-.", ":"
             Default is "-"
         axis_limits : list
-            (min n, max n, min s, max s)          
-        grid : boolean
-            Show grid lines or not. Default False
+            (min n, max n, min s, max s)  
+        log_y : boolean
+            Plot the Y axis (s) as a log or not
+        grid_major : boolean
+            Show major grid lines or not. Default False
+        grid_minor : boolean
+            Show minor grid lines or not. Default False
         plot_points : boolean
             Plot S-N data points. Default True
         plot_regression : boolean
@@ -521,6 +525,7 @@ class EdnaCalc:
         marker = kwargs.get("marker", "o")
         line_style = kwargs.get("line_style", "-")
         axis_limits = kwargs.get("axis_limits", None)
+        log_y = kwargs.get("axis_style", True)
         grid_major = kwargs.get("grid_major", False)
         grid_minor = kwargs.get("grid_minor", False)
         plot_points = kwargs.get("plot_points", True)
@@ -559,11 +564,16 @@ class EdnaCalc:
         ax.set_title('Fatigue Lifecycle')
         
         # Set the axis behaviour
-        ax.set_yscale('log')
         ax.set_xscale('log')
-        ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
-        ax.yaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, pos: '%s' % (str(x)[0] if int(str(x)[0]) < 6 else '')))
         ax.xaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, pos: '%s' % (str(x)[0] if int(str(x)[0]) < 6 else '')))
+        if log_y:
+            ax.set_yscale("log")
+            ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
+            ax.yaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, pos: '%s' % (str(x)[0] if int(str(x)[0]) < 6 else '')))
+        else:
+            ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
+
+            
         
         # Set the axis limits, if any:
         if axis_limits is not None:
@@ -597,13 +607,22 @@ class EdnaCalc:
         
         if plot_points:
             ax.scatter(N, S, marker=marker, label="Data")
+            rl = None
             for i, is_runout in enumerate(runout):
                 if is_runout:
                     # handle any runout points by plotting an arrow from the marker 
                     # pointing to top right
-                    start_x, start_y = N[i], S[i]
-                    len_x = start_x * 0.2
-                    len_y = 20
+                    # Want these arrows to appear the same regardless of where on the graph they are
+                    # And regardless of whether using a log or linear scale
+                    start_x, start_y = N[i], S[i]                    
+                    len_x = start_x * 0.5
+                    if log_y:
+                        len_y = start_y * 0.1
+                    else:
+                        if rl is None:
+                            rl = axis_limits[2] * 0.2
+                        len_y = rl
+                    
                     ax.annotate("", xy=(start_x+len_x, start_y+len_y), xytext=(start_x, start_y), arrowprops=dict(arrowstyle="->"))
                     
         curve_s = np.array([1*np.min(S), 1*np.max(S)])

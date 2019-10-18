@@ -32,7 +32,6 @@ Plans:
 '''
 
 
-import pyedna
 
 # Define the font style used for titles
 FONT = "-size 12"
@@ -46,6 +45,11 @@ NN = "n"
 SS = "s"
 AUTO = "auto"
 MANUAL = "manual"
+
+# Define aliases for the axis styles here
+# These will be used directly by matplotlib
+LOG = "log"
+LINEAR = "linear"
 
 # Define the limits for arbitrary material types
 # limits are (n_min, n_max, s_min, s_max)
@@ -112,6 +116,9 @@ class GraphWindow(tk.Toplevel):
         self.axis_limit = tk.StringVar()
         self.axis_limit.set(STEEL)
         self.axis_limit.trace("w", self.btn_axis_limits_changed)
+        
+        self.axis_y_style = tk.StringVar()
+        self.axis_y_style.set(LOG)
         
         # Keeping track of graph size in cm
         self.x_size = tk.DoubleVar()
@@ -199,51 +206,63 @@ class GraphWindow(tk.Toplevel):
             * Symbols and line style
             * Grid
         '''
-        self.how_title = tk.Label(self.frame_how, text = "Plotting style", font=FONT)
-        self.how_title.grid(row=0, column=0, columnspan=4, sticky="nsew")
+        how_title = tk.Label(self.frame_how, text = "Plotting style", font=FONT)
+        how_title.grid(row=0, column=0, columnspan=4, sticky="nsew")
         
         # Data point symbols - here the variable is directly the Matplotlib marker command
-        self.how_subtitle_symbol = tk.Label(self.frame_how, text="Symbol style", font=FONT)
-        self.bt_symbols = (tk.Radiobutton(self.frame_how, text="Circle", variable=self.symbol, value="o"),
+        how_subtitle_symbol = tk.Label(self.frame_how, text="Symbol style", font=FONT)
+        bt_symbols = (tk.Radiobutton(self.frame_how, text="Circle", variable=self.symbol, value="o"),
                         tk.Radiobutton(self.frame_how, text="Square", variable=self.symbol, value="s",),
                         tk.Radiobutton(self.frame_how, text="Triangle", variable=self.symbol, value="^",),
                         tk.Radiobutton(self.frame_how, text="Cross", variable=self.symbol, value="x",),
                         tk.Radiobutton(self.frame_how, text="Star", variable=self.symbol, value="*",),
                         tk.Radiobutton(self.frame_how, text="Diamond", variable=self.symbol, value="d",), )
-        self.how_subtitle_symbol.grid(row=1, column=0, sticky="nsew")
-        for i, sym in enumerate(self.bt_symbols):
+        how_subtitle_symbol.grid(row=1, column=0, sticky="nsew")
+        for i, sym in enumerate(bt_symbols):
             sym.grid(row=i+2, column=0, sticky="nsw")
         
         # Line styles - here the variable is directly the Matplotlib marker command
-        self.how_subtitle_line = tk.Label(self.frame_how, text="Line style", font=FONT)
-        self.bt_lines = (tk.Radiobutton(self.frame_how, text="Solid", variable=self.line, value="-"),
+        how_subtitle_line = tk.Label(self.frame_how, text="Line style", font=FONT)
+        bt_lines = (tk.Radiobutton(self.frame_how, text="Solid", variable=self.line, value="-"),
                         tk.Radiobutton(self.frame_how, text="Dashed", variable=self.line, value="--",),
                         tk.Radiobutton(self.frame_how, text="Dotted", variable=self.line, value=":",),
                         tk.Radiobutton(self.frame_how, text="Dash-dot", variable=self.line, value="-.",))
-        self.how_subtitle_line.grid(row=1, column=1, sticky="nsew")
-        for i, lin in enumerate(self.bt_lines):
+        how_subtitle_line.grid(row=1, column=1, sticky="nsew")
+        for i, lin in enumerate(bt_lines):
             lin.grid(row=i+2, column=1, sticky="nsw")
         
         # Axis limits
-        self.how_subtitle_axis_limits = tk.Label(self.frame_how, text="Axis Limits", font=FONT)
-        self.bt_axis_limits = (tk.Radiobutton(self.frame_how, text="Steel", variable=self.axis_limit, value=STEEL),
+        how_subtitle_axis_limits = tk.Label(self.frame_how, text="Axis Limits", font=FONT)
+        bt_axis_limits = (tk.Radiobutton(self.frame_how, text="Steel", variable=self.axis_limit, value=STEEL),
                                tk.Radiobutton(self.frame_how, text="Aluminium", variable=self.axis_limit, value=AL),
                                tk.Radiobutton(self.frame_how, text="N-limits", variable=self.axis_limit, value=NN),
                                tk.Radiobutton(self.frame_how, text="S-limits", variable=self.axis_limit, value=SS),
                                tk.Radiobutton(self.frame_how, text="Auto limits", variable=self.axis_limit, value=AUTO),
                                tk.Radiobutton(self.frame_how, text="Manual limits", variable=self.axis_limit, value=MANUAL),
                                )
-        self.how_subtitle_axis_limits.grid(row=1, column=2, sticky="nsew")
-        for i, axl in enumerate(self.bt_axis_limits):
+        how_subtitle_axis_limits.grid(row=1, column=2, sticky="nsew")
+        for i, axl in enumerate(bt_axis_limits):
             axl.grid(row=i+2, column=2, sticky="nsw")
             
         # Grid - be careful of distinction between _tkinter grid_ and _grid to be plotted in graph_
-        self.how_subtitle_grid = tk.Label(self.frame_how, text="Grid", font=FONT)
-        self.how_subtitle_grid.grid(row=1, column=3, sticky="nsew")
-        self.bt_grid_major = tk.Checkbutton(self.frame_how, text="Major", variable=self.grid_major)
-        self.bt_grid_major.grid(row=2, column=3, sticky="nsw")
-        self.bt_grid_minor = tk.Checkbutton(self.frame_how, text="Minor", variable=self.grid_minor)
-        self.bt_grid_minor.grid(row=3, column=3, sticky="nsw")
+        nr = 10 # New row
+        col = 0
+        how_subtitle_grid = tk.Label(self.frame_how, text="Grid", font=FONT)
+        how_subtitle_grid.grid(row=nr, column=col, sticky="nsew")
+        bt_grid_major = tk.Checkbutton(self.frame_how, text="Major", variable=self.grid_major)
+        bt_grid_major.grid(row=nr+1, column=col, sticky="nsw")
+        bt_grid_minor = tk.Checkbutton(self.frame_how, text="Minor", variable=self.grid_minor)
+        bt_grid_minor.grid(row=nr+2, column=col, sticky="nsw")
+        
+        # Axis Style
+        col = 1
+        how_subtitle_axis = tk.Label(self.frame_how, text="Y axis", font=FONT)
+        how_subtitle_axis.grid(row=nr, column=col, sticky="nsew")
+        bt_axis_style = (tk.Radiobutton(self.frame_how, text="Log", variable=self.axis_y_style, value=LOG),
+                         tk.Radiobutton(self.frame_how, text="Linear", variable=self.axis_y_style, value=LINEAR),
+                         )
+        for i, bt in enumerate(bt_axis_style):
+            bt.grid(row=nr+1+i, column=col, sticky="nsw")
     
     
     
@@ -385,6 +404,7 @@ class GraphWindow(tk.Toplevel):
         kwargs = {"marker" : self.symbol.get(),
                   "line_style" : self.line.get(),
                   "axis_limits" : [var.get() for var in self.limit_vars],
+                  "axis_style" : self.axis_y_style.get()==LOG,              # Send a boolean, i.e. isLog
                   "grid_major" : self.grid_major.get(),
                   "grid_minor" : self.grid_minor.get(),
                   "plot_points" : self.plot_points.get(),
