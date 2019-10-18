@@ -100,7 +100,8 @@ class GraphWindow(tk.Toplevel):
         self.plot_dc_bs540 = tk.BooleanVar()
         self.plot_dc_ec3 = tk.BooleanVar()
         
-        self.grid = tk.BooleanVar()
+        self.grid_major = tk.BooleanVar()
+        self.grid_minor = tk.BooleanVar()
         
         self.symbol = tk.StringVar()
         self.symbol.set("o")
@@ -239,8 +240,10 @@ class GraphWindow(tk.Toplevel):
         # Grid - be careful of distinction between _tkinter grid_ and _grid to be plotted in graph_
         self.how_subtitle_grid = tk.Label(self.frame_how, text="Grid", font=FONT)
         self.how_subtitle_grid.grid(row=1, column=3, sticky="nsew")
-        self.bt_grid = tk.Checkbutton(self.frame_how, text="Grid", variable=self.grid)
-        self.bt_grid.grid(row=2, column=3, sticky="nsw")
+        self.bt_grid_major = tk.Checkbutton(self.frame_how, text="Major", variable=self.grid_major)
+        self.bt_grid_major.grid(row=2, column=3, sticky="nsw")
+        self.bt_grid_minor = tk.Checkbutton(self.frame_how, text="Minor", variable=self.grid_minor)
+        self.bt_grid_minor.grid(row=3, column=3, sticky="nsw")
     
     
     
@@ -382,7 +385,8 @@ class GraphWindow(tk.Toplevel):
         kwargs = {"marker" : self.symbol.get(),
                   "line_style" : self.line.get(),
                   "axis_limits" : [var.get() for var in self.limit_vars],
-                  "grid" : self.grid.get(),
+                  "grid_major" : self.grid_major.get(),
+                  "grid_minor" : self.grid_minor.get(),
                   "plot_points" : self.plot_points.get(),
                   "plot_regression" : self.plot_regression.get(),
                   "plot_points_conf" : self.plot_conf_pt.get(),

@@ -521,7 +521,8 @@ class EdnaCalc:
         marker = kwargs.get("marker", "o")
         line_style = kwargs.get("line_style", "-")
         axis_limits = kwargs.get("axis_limits", None)
-        grid = kwargs.get("grid", False)
+        grid_major = kwargs.get("grid_major", False)
+        grid_minor = kwargs.get("grid_minor", False)
         plot_points = kwargs.get("plot_points", True)
         plot_regression = kwargs.get("plot_regression", True)
         plot_points_conf = kwargs.get("plot_points_conf", False)
@@ -579,8 +580,10 @@ class EdnaCalc:
         rcp['axes.titlepad'] = 10
         
         # set grid
-        if grid:
+        if grid_major:
             ax.grid(which="major", ls=":", color="black")
+        if grid_minor:
+            ax.grid(which="minor", ls=":", color="black")
 
         def curve(intercept, gradient, s, label):
             alpha = np.log10(intercept)
