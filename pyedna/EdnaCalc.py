@@ -28,7 +28,7 @@ class EdnaCalc:
         self.ymax = 1e10
         
         
-    def read_data_file(self, file_path, d_id, **kwargs):
+    def load_data(self, file_path, data_id, **kwargs):
         '''Read a text file and determine which, if any, are runouts.
         Insert the resulting data into the appropriate place
         Matching the Python style, we use 0 and 1, rather than 1, 2, to denote 
@@ -72,9 +72,9 @@ class EdnaCalc:
               f" indicators are {runout_markers}. You requested runout indicator"\
               f" '{runout}'")
         
-        self.data[d_id] = data
-        self.runout[d_id] = runout.astype(bool)
-        self.header[d_id] = header
+        self.data[data_id] = data
+        self.runout[data_id] = runout.astype(bool)
+        self.header[data_id] = header
 
 
 
@@ -129,7 +129,7 @@ class EdnaCalc:
         '''Perform a Stress / Lifetime analysis based on a log-normal model.
         
         Analysis is based on a SINTEF report:
-            Statstical ANalysis of Fatigue test data
+            Statstical Analysis of Fatigue test data
             Marvin Rausand
             1981-07-09
             ISBN 82-595-2601-8
@@ -166,6 +166,15 @@ class EdnaCalc:
         ----------
         data_id : int
             Which data set to perform a linear regression on
+        kwargs
+            debug : bool
+                Enable or disable debugging output
+            computer_slope : float
+                Used by the compare() function. The user should never manually configure this value
+            comptuer_intercept : float
+                Used by the compare() function. The user should never manually configure this value
+            ignore_merge : float
+                Used by the compare() function to enforce ignoring the merge flag. The user should never manually configure this value
         
         '''
         # Handle kwargs
@@ -185,9 +194,10 @@ class EdnaCalc:
         # Make a substitution to match a simple linear model
         # In this substitution, we want to find alpha = log10(intercept)
         # and beta = gradient
-        # Note also: I have followed the convention in edna, mapping between 
-        # (s <> x) and (N <> y). Beware - this results in "x" being plotted on 
-        # the y axis, and vice-versa. !!Pay close attention to which is which!!
+        # Note also: I have followed the convention in the Rausand report, 
+        # mapping between  (s <> x) and (N <> y). Beware - this results in 
+        # "x" being plotted on the y axis, and vice-versa. THIS IS NOT THE 
+        # SAME AS IN EDNA. PAY ATTENTION TO WHICH IS WHICH WITH EXTREME CARE
         x = np.log10(S)
         y = np.log10(N)
         
@@ -198,23 +208,27 @@ class EdnaCalc:
         
         # Perform a simple linear regression to find intercept and gradient
         # using scipy.optimize.curve_fit.
-        # WOrk with any constraints provided by redefining the model to catch the correct number of constraints
+        # Work with any constraints provided by redefining the model to catch the correct number of constraints
+        
         if self.user_slope is not None:
             # User has specified a value for the slope, therefore constrain this from changing
-            limits = ([-np.inf, self.user_slope-2*np.spacing(1)], [np.inf, self.user_slope+2*np.spacing(1)])
-            initial_guess = [1, self.user_slope]
+            raise NotImplementedError
+#            limits = ([-np.inf, self.user_slope-2*np.spacing(1)], [np.inf, self.user_slope+2*np.spacing(1)])
+#            initial_guess = [1, self.user_slope]
         elif computer_slope is not None and computer_intercept is not None:
             # Slope and intercept both specified for self.compare()
-            # TODO TODO: THis is a special case, because there are NO degrees of freedom, so curve_fit will throw a hissy fit
-            initial_guess = (computer_intercept, computer_slope)
-            limits = ([computer_intercept*0.999, computer_slope-2*np.spacing(1)], [computer_intercept*1.001, computer_slope+2*np.spacing(1)])
-            dof = 0
+            raise NotImplementedError
+            # TODO TODO: This is a special case, because there are NO degrees of freedom, so curve_fit will throw a hissy fit
+#            initial_guess = (computer_intercept, computer_slope)
+#            limits = ([computer_intercept*0.999, computer_slope-2*np.spacing(1)], [computer_intercept*1.001, computer_slope+2*np.spacing(1)])
+#            dof = 0
 
         elif computer_slope is not None:
             # Mechanical specified slope parameter, used by self.compare()
-            initial_guess = [1, computer_slope]
-            limits = ([-np.inf, computer_slope-2*np.spacing(1)], [np.inf, computer_slope+np.spacing(1)])
-            dof = 1
+            raise NotImplementedError
+#            initial_guess = [1, computer_slope]
+#            limits = ([-np.inf, computer_slope-2*np.spacing(1)], [np.inf, computer_slope+np.spacing(1)])
+#            dof = 1
         elif self.user_thick is not None:
             raise NotImplementedError
         else:
@@ -248,15 +262,17 @@ class EdnaCalc:
         
         # Section 3.4
         # Confidence intervals for alpha, beta
+        # We get the uncertainty of the params from the diag of the covariance matrix. This is given as sigma
         alpha, beta = params
         sigma_alpha, sigma_beta = np.sqrt(np.diag(cov))
+        # We want percentile confidence, not sigma - use the ppf to convert. 
         s95_alpha, s95_beta = scipy.stats.norm.ppf(1-self.epsilon, 0, 1)*np.sqrt(np.diag(cov))
-        # Use of the ppf - convert from sigma to percentile
         
-        results = {"r_squared": r_squared, "stdev":stdev, "slope": beta,
+        
+        results = {"r_squared": r_squared, "stdev": stdev, "slope": beta,
                    "intercept":10**alpha, "delta_sigma": 10**((alpha - log10_2e6)/-beta),
-                   "variance":variance, "points":num_points, "dof":dof, "alpha":alpha,
-                   "intercept_conf":s95_alpha, "slope_conf":s95_beta}
+                   "variance": variance, "points":num_points, "dof": dof, "alpha": alpha,
+                   "intercept_conf": s95_alpha, "slope_conf": s95_beta}
         # Delta-sigma is in units [Mpa]
         
         # Also write some information about the input data to the results
@@ -267,8 +283,8 @@ class EdnaCalc:
         ####################### Report statistics
         # No-one has been able to provide me with a specification for the following statistics.
         # Therefore, they are cobbled together as best I can from reverse engineering the original code
-        # In particular, the reversal of x and y relative to mathematical convention renders 
-        # interpretation considerably more difficult and error prone
+        # In particular, the reversal of x and y relative to mathematical convention (and relative to Edna) 
+        # renders interpretation considerably more difficult and error prone
         # When, or if, I am able to get a clearer explanation from the users what it all means and why,
         # it will be tided up
         #
@@ -279,48 +295,48 @@ class EdnaCalc:
         #Handled around line 1750 in frmhoved.frm
         
         # confidence interval for regression line in Analysis Report
-        mean_logN = np.sum(y)/num_points # Referred to as YMID in frmHoved.frm
-        mean_logS = np.sum(x)/num_points # XMID
+        mean_logS = np.sum(x)/num_points # YMID
+        mean_logN = np.sum(y)/num_points # XMID
         sumx = np.sum(x)
         sumy = np.sum(y)
         sumx2 = np.sum(x**2)
         sumy2 = np.sum(y**2)
         sumxy = np.sum(x*y)
-        sumxx = np.sum( (x-mean_logN)**2 ) # sumxx in frmHoved, around line 1735
-        sumyy = np.sum( (y-mean_logS)**2 )
+        sumxx = np.sum( (x-mean_logS)**2 ) # sumyy in frmHoved, around line 1735
+        sumyy = np.sum( (y-mean_logN)**2 )
         if self.user_slope is not None: # user_slope: text3, Valhel, line 1744
             S2s = residual_sum_of_squares / (num_points - dof)
             temp = 1-(residual_sum_of_squares/sumxx) 
-            r = min(0, temp) # not lower than zero.
+            r = max(0, temp) # not lower than zero.
         elif self.user_slope is None and num_points > 2: # line 1752
             S2s = residual_sum_of_squares / (num_points - dof)
             temp_numerator = (num_points*sumxy) - (sumx*sumy)
             temp_denominator = np.sqrt( ((num_points * sumy2) - sumy**2) * ((num_points*sumx2) - sumx**2) )
             temp = temp_numerator / temp_denominator
-            r = min(0, temp)
+            r = max(0, temp)
         else: # line 1757
             S2s = 0
             r = 1
         s = np.sqrt(S2s)
         rp = scipy.stats.t.isf(0.05/2, num_points-dof) # Only distinction here seems to be that s95 uses hardcoded confidence, s9xs allows user choice
-        rp2 = scipy.stats.t.isf(self.epsilon/2, num_points-dof)
+        rp2 = scipy.stats.t.isf(self.epsilon/2, num_points-dof) # DivBy2 - original Excel functions are double-sided; scipy are single tailed
         s9Xs = rp2 * s / np.sqrt(num_points) # I think that in Edna, this is a placeholder for (future) user-defined epsilon
         s95s = rp * s / np.sqrt(num_points)
         des3 = s * ddist(num_points-dof) # Used for EC3 design curve
-        rf = scipy.stats.f.isf(self.epsilon, 2, num_points-dof)
+        rf = scipy.stats.f.isf(self.epsilon, dof, num_points-dof)
         d0 = 2 * s * np.sqrt(2*rf/num_points) # Used for the confidence interval at the mean value of b/beta
-        d1 = 2 * s * np.sqrt(2*rf / sumyy) # Used for the confidence interval at a mean value of c/alpha
-        pre = 2 * s9Xs * np.sqrt(num_points + dof) ## NOTE the +: this is used in the original code. No idea why. 
-        results["confidence_given_s"] = 2 * pre
-        results["confidence_b"] = d1
-        results["confidence_c"] = d0
+        d1 = 2 * s * np.sqrt(2*rf / sumxx) # Used for the confidence interval at a mean value of c/alpha
+        pre = 2 * s9Xs * np.sqrt(num_points + 2) ## NOTE the +: this is used in the original code. No idea why. 
+        results["mean_stress"] = 10**mean_logS # In units [MPa]
+        results["regression_confidence"] = 2* s9Xs  # "% confidence interval for Regression Line"
+        results["confidence_given_s"] = pre   # "% confidence interval for given value of S"
+        results["confidence_b"] = d1 # "% confidence interval (for mean value of C)"
+        results["confidence_c"] = d0 # "% confidence interval (for mean value of b)"
         results["s_lower"] = -beta - (d1*0.5)
         results["s_upper"] = -beta + (d1*0.5)
         results["c_lower"] = 10**(alpha-(0.5*d0))
         results["c_upper"] = 10**(alpha+(0.5*d0))
-        results["regression_confidence"] = 2* s9Xs # Tis is used in report formatter, a future update may want to make the confidence threshold user configurable, then sqitch to s9x
-        results["mean_stress"] = 10**mean_logS # In units [MPa]
-        results["dc_bs540_intercept"] = 10**(alpha-(s9Xs*np.sqrt(num_points+1))) # frmhoved line 426
+        results["dc_bs540_intercept"] = 10**(alpha-(s95s*np.sqrt(num_points+1))) # frmhoved line 426
         results["dc_bs540_delta_sigma"] = 10**((alpha - log10_2e6 - (s95s*np.sqrt(num_points+1)) )/-beta)
         results["dc_ec3_intercept"] = 10**(alpha-des3) # frmhoved line 429
         results["dc_ec3_delta_sigma"] = 10**((alpha - log10_2e6 - des3)/-beta)

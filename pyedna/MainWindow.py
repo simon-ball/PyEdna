@@ -221,7 +221,7 @@ class MainWindow(object):
         full_file_name = os.path.join(self.folder, file_name)
         
         # Read the data file into the calculator: this extracts the actual data as numbers
-        self.calc.read_data_file(full_file_name, data_id)
+        self.calc.load_data(full_file_name, data_id)
         
         # Read the data file into the GUI - note this is ONLY for display, 
         # the text in the GUI is never used for calculations        
