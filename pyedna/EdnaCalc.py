@@ -307,7 +307,7 @@ class EdnaCalc:
         if self.user_slope is not None: # user_slope: text3, Valhel, line 1744
             S2s = residual_sum_of_squares / (num_points - dof)
             temp = 1-(residual_sum_of_squares/sumxx) 
-            r = max(0, temp) # not lower than zero.
+            r = max(0, temp) # Must be positive. 
         elif self.user_slope is None and num_points > 2: # line 1752
             S2s = residual_sum_of_squares / (num_points - dof)
             temp_numerator = (num_points*sumxy) - (sumx*sumy)

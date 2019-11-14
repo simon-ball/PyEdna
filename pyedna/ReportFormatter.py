@@ -6,6 +6,9 @@ Created on Thu Jul  4 14:34:06 2019
 """
 from mailmerge import MailMerge # installed as "docx-mailmerge"
 from pathlib import Path
+import locale
+
+
 
 
 
@@ -30,6 +33,15 @@ def format_report(report_filename, data, runout, results, *args, **kwargs):
         1D array of runout status, True where that row was a runout
     results : dict
         Output from ednacalc.linear_regression(), the variable names are reused here
+    kwargs
+        locale : str
+            Localisation string for number formatting. 
+            Defaults to "en_GB": 
+                decimal point is "."
+                thousand separator is ","
+            
+                    
+                
     
         
     Returns
@@ -44,6 +56,9 @@ def format_report(report_filename, data, runout, results, *args, **kwargs):
     template_location = Path(__file__).parent
     template = template_location / "template_report.docx"
     
+    # Set localisation for number formatting
+    location = kwargs.get("locale", "en_GB")
+    locale.setlocale(locale.LC_ALL, location)
     
     to_write = {}
     ######### Data file header information
@@ -56,34 +71,35 @@ def format_report(report_filename, data, runout, results, *args, **kwargs):
     # For this, we pass a list of dictionaries, and assign it to the first merge field in the table
     data_table = []
     for i, [S, N] in enumerate(data):
-        row = {"data_stress": str(S), "data_number": str(N) + str(int(runout[i])*"**")}
+        r = int(runout[i])
+        row = {"data_stress": f"{S:n}", "data_number": f"{r*'**'}{N:n}{r*'**'}"}
         data_table.append(row)
     
     ######## Output mean curve
-    to_write["slope"] =             f"{-1*results['slope']:.4g}"
-    to_write["intercept"] =         f"{results['intercept']:.4g}"
-    to_write["log_intercept"] =     f"{results['alpha']:.4g}"
-    to_write["delta_sigma"] =       f"{results['delta_sigma']:.4g}"
-    to_write["stdev"] =             f"{results['stdev']:.4g}"
-    to_write['mean_stress'] =       f"{results['mean_stress']:.4g}"
-    to_write["r_squared"] =         f"{results['r_squared']:.4g}"
-    to_write["confidence_regression"] = f"{results['regression_confidence']:.4g}"
-    to_write["confidence_given_s"] =f"{results['confidence_given_s']:.4g}"
-    to_write["confidence_b"] = f"{results['confidence_b']:.4g}"
-    to_write["confidence_c"] = f"{results['confidence_c']:.4g}"
-    to_write["s_lower"] = f"{results['s_lower']:.4g}"
-    to_write["s_upper"] = f"{results['s_upper']:.4g}"
-    to_write["c_lower"] = f"{results['c_lower']:.4g}"
-    to_write["c_upper"] = f"{results['c_upper']:.4g}"
+    to_write["slope"] =             f"{-1*results['slope']:.4n}"
+    to_write["intercept"] =         f"{results['intercept']:.4n}"
+    to_write["log_intercept"] =     f"{results['alpha']:.4n}"
+    to_write["delta_sigma"] =       f"{results['delta_sigma']:.4n}"
+    to_write["stdev"] =             f"{results['stdev']:.4n}"
+    to_write['mean_stress'] =       f"{results['mean_stress']:.4n}"
+    to_write["r_squared"] =         f"{results['r_squared']:.4n}"
+    to_write["confidence_regression"] = f"{results['regression_confidence']:.4n}"
+    to_write["confidence_given_s"] =f"{results['confidence_given_s']:.4n}"
+    to_write["confidence_b"] = f"{results['confidence_b']:.4n}"
+    to_write["confidence_c"] = f"{results['confidence_c']:.4n}"
+    to_write["s_lower"] = f"{results['s_lower']:.4n}"
+    to_write["s_upper"] = f"{results['s_upper']:.4n}"
+    to_write["c_lower"] = f"{results['c_lower']:.4n}"
+    to_write["c_upper"] = f"{results['c_upper']:.4n}"
     
     # Confidence interval used
     to_write["epsilon"] = "{}".format(int(100*results["confidence_interval"]))
     
     # Output: Design curve
-    to_write["dc_bs540_intercept"] =    f"{results['dc_bs540_intercept']:.4g}"
-    to_write["dc_bs540_delta_sigma"] =  f"{results['dc_bs540_delta_sigma']:.4g}"
-    to_write["dc_ec3_intercept"] =      f"{results['dc_ec3_intercept']:.4g}"
-    to_write["dc_ec3_delta_sigma"] =    f"{results['dc_ec3_delta_sigma']:.4g}"
+    to_write["dc_bs540_intercept"] =    f"{results['dc_bs540_intercept']:.4n}"
+    to_write["dc_bs540_delta_sigma"] =  f"{results['dc_bs540_delta_sigma']:.4n}"
+    to_write["dc_ec3_intercept"] =      f"{results['dc_ec3_intercept']:.4n}"
+    to_write["dc_ec3_delta_sigma"] =    f"{results['dc_ec3_delta_sigma']:.4n}"
 #    
     with MailMerge(template) as document:
 #        fields = document.get_merge_fields()
