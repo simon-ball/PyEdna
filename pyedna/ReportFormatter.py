@@ -60,30 +60,30 @@ def format_report(report_filename, data, runout, results, *args, **kwargs):
         data_table.append(row)
     
     ######## Output mean curve
-    to_write["slope"] =             f"{results['slope']:3g}"
-    to_write["intercept"] =         f"{results['intercept']:3g}"
-    to_write["log_intercept"] =     f"{results['alpha']:3g}"
-    to_write["delta_sigma"] =       f"{results['delta_sigma']:3g}"
-    to_write["stdev"] =             f"{results['stdev']:3g}"
-    to_write['mean_stress'] =       f"{results['mean_stress']:3g}"
-    to_write["r_squared"] =         f"{results['r_squared']:3g}"
-    to_write["confidence_regression"] = f"{results['regression_confidence']:3g}"
-    to_write["confidence_given_s"] =f"{results['confidence_given_s']:3g}"
-    to_write["confidence_b"] = f"{results['confidence_b']:3g}"
-    to_write["confidence_c"] = f"{results['confidence_c']:3g}"
-    to_write["s_lower"] = f"{results['s_lower']:3g}"
-    to_write["s_upper"] = f"{results['s_upper']:3g}"
-    to_write["c_lower"] = f"{results['c_lower']:3g}"
-    to_write["c_upper"] = f"{results['c_upper']:3g}"
+    to_write["slope"] =             f"{-1*results['slope']:.4g}"
+    to_write["intercept"] =         f"{results['intercept']:.4g}"
+    to_write["log_intercept"] =     f"{results['alpha']:.4g}"
+    to_write["delta_sigma"] =       f"{results['delta_sigma']:.4g}"
+    to_write["stdev"] =             f"{results['stdev']:.4g}"
+    to_write['mean_stress'] =       f"{results['mean_stress']:.4g}"
+    to_write["r_squared"] =         f"{results['r_squared']:.4g}"
+    to_write["confidence_regression"] = f"{results['regression_confidence']:.4g}"
+    to_write["confidence_given_s"] =f"{results['confidence_given_s']:.4g}"
+    to_write["confidence_b"] = f"{results['confidence_b']:.4g}"
+    to_write["confidence_c"] = f"{results['confidence_c']:.4g}"
+    to_write["s_lower"] = f"{results['s_lower']:.4g}"
+    to_write["s_upper"] = f"{results['s_upper']:.4g}"
+    to_write["c_lower"] = f"{results['c_lower']:.4g}"
+    to_write["c_upper"] = f"{results['c_upper']:.4g}"
     
     # Confidence interval used
     to_write["epsilon"] = "{}".format(int(100*results["confidence_interval"]))
     
     # Output: Design curve
-    to_write["dc_bs540_intercept"] =    f"{results['dc_bs540_intercept']:3g}"
-    to_write["dc_bs540_delta_sigma"] =  f"{results['dc_bs540_delta_sigma']:3g}"
-    to_write["dc_ec3_intercept"] =      f"{results['dc_ec3_intercept']:3g}"
-    to_write["dc_ec3_delta_sigma"] =    f"{results['dc_ec3_delta_sigma']:3g}"
+    to_write["dc_bs540_intercept"] =    f"{results['dc_bs540_intercept']:.4g}"
+    to_write["dc_bs540_delta_sigma"] =  f"{results['dc_bs540_delta_sigma']:.4g}"
+    to_write["dc_ec3_intercept"] =      f"{results['dc_ec3_intercept']:.4g}"
+    to_write["dc_ec3_delta_sigma"] =    f"{results['dc_ec3_delta_sigma']:.4g}"
 #    
     with MailMerge(template) as document:
 #        fields = document.get_merge_fields()
