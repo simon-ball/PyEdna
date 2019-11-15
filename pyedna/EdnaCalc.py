@@ -540,14 +540,14 @@ class EdnaCalc:
         
         marker = kwargs.get("marker", "o")
         line_style = kwargs.get("line_style", "-")
-        axis_limits = kwargs.get("axis_limits", None)
+        x_axis_limits, y_axis_limits = kwargs.get("axis_limits", (None, None))
         log_y = kwargs.get("axis_style", True)
         grid_major = kwargs.get("grid_major", False)
         grid_minor = kwargs.get("grid_minor", False)
         plot_points = kwargs.get("plot_points", True)
         plot_regression = kwargs.get("plot_regression", True)
         plot_points_conf = kwargs.get("plot_points_conf", False)
-        plot_regression_conf = kwargs.get("plot_points_regression", False)
+        plot_regression_conf = kwargs.get("plot_regression_conf", False)
         plot_dc_bs540 = kwargs.get("plot_dc_bs540", False)
         plot_dc_ec3 = kwargs.get("plot_dc_ec3", False)
         plot_legend=kwargs.get("plot_legend", True)
@@ -592,9 +592,10 @@ class EdnaCalc:
             
         
         # Set the axis limits, if any:
-        if axis_limits is not None:
-            ax.set_xlim(axis_limits[0], axis_limits[1])
-            ax.set_ylim(axis_limits[2], axis_limits[3])
+        if x_axis_limits is not None:
+            ax.set_xlim(*x_axis_limits)
+        if y_axis_limits is not None:
+            ax.set_ylim(*y_axis_limits)
         
         # Set font size
         ax.yaxis.label.set_fontsize(font)
@@ -611,12 +612,17 @@ class EdnaCalc:
         if grid_minor:
             ax.grid(which="minor", ls=":", color="black")
 
-        def curve(intercept, gradient, s, label):
+        def calculate_curve(intercept, gradient, s):
+            '''Calculate N, S values to plot the requested curve'''
             alpha = np.log10(intercept)
             log_s = np.log10(s)
             log_n = alpha + (gradient * log_s)
             n = 10**log_n
-            ax.plot(n, s, linestyle=line_style, label=label)
+            return n, s
+#            if label is not None:
+#                ax.plot(n, s, linestyle=curve_linestyle, label=label)
+#            else:
+#                ax.plot(n, s, linestyle=curve_linestyle)
         
         ##########################################################
         ############    plot the graph
@@ -643,25 +649,41 @@ class EdnaCalc:
                     
         curve_s = np.array([1*np.min(S), 1*np.max(S)])
         if plot_regression:
-            curve(results["intercept"], results["slope"], curve_s, label="Regression")
+            n, s = calculate_curve(results["intercept"], results["slope"], curve_s)
+            ax.plot(n, s, linestyle=line_style, label="Regression")
 
             
         if plot_points_conf:
-            # 95%% conf. for given value of S
+            # 95% confidence interval for given value of S
             raise NotImplementedError
+            
         
         if plot_regression_conf:
-            # 95%% conf. for reg. line            
-            raise NotImplementedError
+            # 95%% conf. for given value of S
+            # Modify the intercept argument given to curve()
+            # Second curve is not labelled to avoid duplicating labels in legend
+            label = f"{results['confidence_interval']*100:n}% for regression"
+            n1, s1 = calculate_curve(results["c_upper"], results["slope"], curve_s)
+            n2, s2 = calculate_curve(results["c_lower"], results["slope"], curve_s)
+            ax.plot(n1, s1, linestyle="--", label=label, color="C4")
+            ax.plot(n2, s2, linestyle="--", color="C4")
         
         if plot_dc_bs540:
             # Plot design curves for BS540, NS3472
-            curve(results["dc_bs540_intercept"], results["slope"], curve_s, label="BS540, NS3472")
+            n, s = calculate_curve(results["dc_bs540_intercept"], results["slope"], curve_s)
+            ax.plot(n, s, linestyle=line_style, label="BS540, NS3472")
         
         if plot_dc_ec3:
             # Plot design curves for EC3
-            curve(results["dc_ec3_intercept"], results["slope"], curve_s, label="EC3")
+            n, s = calculate_curve(results["dc_ec3_intercept"], results["slope"], curve_s)
+            ax.plot(n, s, linestyle=line_style, label="EC3")
         if plot_legend:
             ax.legend(fontsize=font)
+        
+        # For display of the automatic axis limit values:
+        # After drawing all relevant lines, get the limits, 
+        # and return them to the calling program (probably GraphPlotter)
+        actual_limits = *ax.get_xlim(), *ax.get_ylim()
+        return actual_limits
         
         

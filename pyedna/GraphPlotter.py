@@ -366,10 +366,10 @@ class GraphWindow(tk.Toplevel):
         elif limit_type == MANUAL:
             states = ["normal"]*4
             lims = (self.n_min.get(), self.n_max.get(), self.s_min.get(), self.s_max.get())
+
         for i in range(4):
             self.limit_entries[i].config(state=states[i])
             self.limit_vars[i].set(lims[i])
-        
 
         
         
@@ -403,7 +403,7 @@ class GraphWindow(tk.Toplevel):
         standalone if desired'''
         kwargs = {"marker" : self.symbol.get(),
                   "line_style" : self.line.get(),
-                  "axis_limits" : [var.get() for var in self.limit_vars],
+                  "axis_limits" : self.get_axis_limits(),
                   "axis_style" : self.axis_y_style.get()==LOG,              # Send a boolean, i.e. isLog
                   "grid_major" : self.grid_major.get(),
                   "grid_minor" : self.grid_minor.get(),
@@ -418,10 +418,35 @@ class GraphWindow(tk.Toplevel):
                   "ax" : self.ax,
                   }
         if self.parent is not None:
-            self.parent.calc.plot_results(self.parent.selected_data, **kwargs)
+            new_limits = self.parent.calc.plot_results(self.parent.selected_data, **kwargs)
+            # Based on the actual limits used in the graph (in the case of autoset values),
+            # update the axis limit text boxes
+            for i in range(4):
+                # Round to a nice number
+                #self.limit_vars[i].set(10**round(int(np.log10(new_limits[i]))))
+                self.limit_vars[i].set(int(new_limits[i]))
             self.refresh_graph()
         else:
             print("Plot! \n" + str(kwargs)) 
+    
+    def get_axis_limits(self):
+        '''This is distinct from the button function above in that it sends None values
+        to Matplotlib to properly handle autosetting axis sizes, while None type can't
+        be shown through the user interface
+        '''
+        limit_type = self.axis_limit.get()
+        if limit_type == AUTO:
+            # Let matplotlib decide both axes
+            limits = (None, None)
+        elif limit_type == NN:
+            # The user is specifying the N (X axis) limits, but let the Y axis float
+            limits = ((self.n_min.get(), self.n_max.get()), None)
+        elif limit_type == SS:
+            # The user is specifying the S (Y axis) limits, but let the X axis float
+            limits = (None, (self.s_min.get(), self.s_max.get()))
+        else:
+            limits = ((self.n_min.get(), self.n_max.get()), (self.s_min.get(), self.s_max.get()))
+        return limits
     
     def refresh_graph(self, *args, **kwargs):
         self.fig.tight_layout()
