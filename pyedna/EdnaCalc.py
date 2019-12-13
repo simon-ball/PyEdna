@@ -12,6 +12,22 @@ except ModuleNotFoundError:
     # Messy hack to get around the problem of EdnaCalc possibly being either main or imported
 
 class EdnaCalc:
+    '''
+    A calculation library for vrious materials-engineering calculations, specifically
+    relating to stress-cycling.
+    
+    This library is stand-alone, and can be used at the command-line without
+    requirement for the GUI. The GUI is provided for the convenience of less
+    experienced users
+    
+    This library was developed by reverse engineering and source-code analysis 
+    of Edna70b, as supplied by Frode Saether to the author. No comprehensive
+    specification has been made available, and consequently this library is provided
+    SOLELY on a "best-effort" basis. No guarantee is provided for the formal or
+    mathematical correctness of this library. By using this library, users
+    accept all responsibility for verifying the correctness of outputs, and all
+    liability arising from its use
+    '''
     def __init__(self, parent=None):
         self.parent = parent
         self.data = [None, None]
@@ -415,10 +431,10 @@ class EdnaCalc:
         value_1 = var1/var2
         test_1_criteria_1 = scipy.stats.f.isf(self.epsilon/2, m_dof1, m_dof2)
         test_1_criteria_2 = 1/scipy.stats.f.isf(self.epsilon/2, m_dof2, m_dof1)
-        variances_equal = not (value_1 > test_1_criteria_1) or \
-                                (value_1 < test_1_criteria_2)
+        variances_equal = not ((value_1 > test_1_criteria_1) or \
+                                (value_1 < test_1_criteria_2))
         if debug:
-            print(f"======  Hypothesis 1: Variances are Equal (**{variances_equal}**)  ======")
+            print(f"======  Hypothesis 0: Variances are Equal (**{variances_equal}**)  ======")
             print(f" Value: {value_1}")
             print(f" test 1 value: {test_1_criteria_1}")
             print(f" test 2 value: {test_1_criteria_2}")
@@ -432,20 +448,19 @@ class EdnaCalc:
         # TEST 2: test whether SN curves are parallel
         # Section 3.8.2, page 20
         temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], ignore_merge=True)
-        m_dof2 = temp_results['points'] - temp_results['dof']
+        #m_dof2 = temp_results['points'] - temp_results['dof']
         RSS = self.Q((results1['intercept'], results2['intercept']), (results1['slope'], results2['slope']))
         RSS_H1 = self.Q((results1['intercept'], temp_results['intercept']), (results1['slope'], temp_results['slope']))
-        #I don't think this is quite right, I think we have to recalculate results where the two slopes are forced to be equal - that requires changes to self.linear_regression
         
         # Null hypothesis (1): curves are parallel
         # We REJECT the null hypothesis (1) if the conditional statement is TRUE
         # Therefore, we ACCEPT the null hypothesis (1) if NOT(statement is True)
         value_2 = ((RSS_H1 - RSS)/RSS) * (m_dof1 + m_dof2)
-        test_2_criteria = scipy.stats.f.isf(self.epsilon, 1, m_dof1 + m_dof2)
+        test_2_criteria = scipy.stats.f.isf(self.epsilon, 1, m_dof1 + m_dof2) # should this be epsilon/2 ??
         curves_parallel = not ( value_2 > test_2_criteria )
         
         if debug:
-            print(f"======  Hypothesis 2: Curves are Parallel (**{curves_parallel}**)  ======")
+            print(f"======  Hypothesis 1: Curves are Parallel (**{curves_parallel}**)  ======")
             print(f" Value: {value_2}")
             print(f" test 3 value: {test_2_criteria}")
             print(f" Hypothesis ACCEPTED if NOT (value_2 > test_2_criteria [{value_2 > test_2_criteria}])")
@@ -458,15 +473,24 @@ class EdnaCalc:
         # Note: this is not the same as curves_parallel AND variances_equal, because
         # that does not respect the confidence interval of the combined test.
         temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], computer_intercept = np.log10(results1['intercept']), ignore_merge=True)
-        m_dof2 = temp_results['points'] - temp_results['dof']
+        #m_dof2 = temp_results['points'] - temp_results['dof']
         RSS_H5 = self.Q((results1['intercept'], temp_results['intercept']), (results1['slope'], temp_results['slope']))
         
         # Null hypothesis (5): slope and intercepts are equal
         # We REJECT the null hypothesis (5) if the conditional statement is True
         # We ACCEPT the null hypothesis (5) if NOT(statement is True)
         value_4 = ((RSS_H5 - RSS)/RSS) * ((m_dof1 + m_dof2)/2)
-        test_4_criteria = scipy.stats.f.isf(self.epsilon, 2, m_dof1+m_dof2)
+        test_4_criteria = scipy.stats.f.isf(self.epsilon/2, 2, m_dof1+m_dof2)
         curves_equal = not ( value_4 > test_4_criteria)
+        
+        if debug:
+            print(f"======  Hypothesis 5: Curves are _Coincident_ (**{curves_equal}**)  ======")
+            print(f" Value: {value_4}")
+            print(f" test 3 value: {test_4_criteria}")
+            print(f" Hypothesis ACCEPTED if NOT (value_4 > test_4_criteria [{value_4 > test_4_criteria}])")
+            print(f" i.e. if test is FALSE, then Hypothesis ACCEPTED")
+            print("")
+            
         
         
         if debug:
@@ -489,8 +513,8 @@ class EdnaCalc:
         '''
         val = 0
         for k in range(2):
-            y = np.log10(self.data[k])[:,0]
-            x = np.log10(self.data[k])[:,1]
+            y = np.log10(self.data[k])[:,1]
+            x = np.log10(self.data[k])[:,0]
             val += np.sum(np.square(y - alpha[k] - (beta[k]*x)))
         return val
       
