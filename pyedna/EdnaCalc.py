@@ -201,75 +201,104 @@ class EdnaCalc:
         x = np.log10(S)
         y = np.log10(N)
         
-        def model(x, alpha, beta):
-            '''Simple linear model'''
-            return alpha + (beta*x)
+
+        ###########################
+        #
+        # Provide 3 separate methods for the three cases of Linear Regression
+        #   a) 2 DOF (i.e. fit both slope and intercept)
+        #   b) 1 DOF (i.e. fit intercept, given a defined slope)
+        #   c) 0 DOF (i.e. given defined slope and intercept, calculate how good the fit is)
+        # Edna does not implement any situation requiring 1DOF but with a defined intercept
+        # 
         
-        
+        def linear_2dof():
+            '''Implement a linear regression on 2 DOF'''
+            def model(x, alpha, beta):
+                '''Simple linear model'''
+                return alpha + (beta*x)
+            dof = 2
+            (alpha, beta), cov = scipy.optimize.curve_fit(model, x, y)
+            residuals = model(x, alpha, beta) - y
+            
+            # (section 3.3)
+            # Estimate the variance of the observations y_i around the model
+            num_points = y.size
+            residual_sum_of_squares = np.sum(np.square(residuals))
+            total_sum_of_squares = np.sum(np.square(y - np.mean(y)))
+            variance = residual_sum_of_squares / (num_points - dof)
+            stdev = np.sqrt(variance)
+            
+            # Section 3.4
+            # Confidence intervals for alpha, beta
+            r_squared = 1 - ( residual_sum_of_squares / total_sum_of_squares )
+            s95_alpha, s95_beta = scipy.stats.norm.ppf(1-self.epsilon, 0, 1)*np.sqrt(np.diag(cov))
+            return alpha, beta, num_points, dof, r_squared, stdev, variance, s95_alpha, s95_beta, residual_sum_of_squares
+
+
+        def linear_1dof(fixed_slope):
+            '''Implement a linear regression on 1DOF, where the curve slope is fixed'''
+            def model(x, alpha):
+                '''Simple linear model'''
+                return alpha + (fixed_slope*x)
+            dof = 1
+            beta = fixed_slope
+            alpha, cov = scipy.optimize.curve_fit(model, x, y)
+            residuals = model(x, alpha) - y
+            
+            num_points = y.size
+            residual_sum_of_squares = np.sum(np.square(residuals))
+            total_sum_of_squares = np.sum(np.square(y - np.mean(y)))
+            variance = residual_sum_of_squares / (num_points - dof)
+            stdev = np.sqrt(variance)
+            
+            r_squared = 1 - ( residual_sum_of_squares / total_sum_of_squares )
+            s95_alpha = scipy.stats.norm.ppf(1-self.epsilon, 0, 1)*np.sqrt(cov)
+            s95_beta = 0
+            return alpha, beta, num_points, dof, r_squared, stdev, variance, s95_alpha, s95_beta, residual_sum_of_squares
+
+        def linear_0dof(fixed_slope, fixed_intercept):
+            '''Implement a placeholder for a linear regression, where there are
+            no degrees of freedom. This is NOT a linear regression, but provides
+            an equivalent interface for getting the same values out'''
+            def model(x):
+                return fixed_intercept + (fixed_slope*x)
+            dof = 0
+            alpha = fixed_intercept
+            beta = fixed_slope
+            residuals = model(x) - y
+            
+            num_points = y.size
+            residual_sum_of_squares = np.sum(np.square(residuals))
+            total_sum_of_squares = np.sum(np.square(y - np.mean(y)))
+            variance = residual_sum_of_squares / (num_points - dof)
+            stdev = np.sqrt(variance)
+            
+            r_squared = 1 - ( residual_sum_of_squares / total_sum_of_squares )
+            s95_alpha = s95_beta = 0
+            return alpha, beta, num_points, dof, r_squared, stdev, variance, s95_alpha, s95_beta, residual_sum_of_squares
+
         # Perform a simple linear regression to find intercept and gradient
         # using scipy.optimize.curve_fit.
         # Work with any constraints provided by redefining the model to catch the correct number of constraints
         
         if self.user_slope is not None:
             # User has specified a value for the slope, therefore constrain this from changing
-            raise NotImplementedError
-#            limits = ([-np.inf, self.user_slope-2*np.spacing(1)], [np.inf, self.user_slope+2*np.spacing(1)])
-#            initial_guess = [1, self.user_slope]
+            alpha, beta, num_points, dof, r_squared, stdev, variance, s95_alpha, s95_beta, residual_sum_of_squares = linear_1dof(self.user_slope)
         elif computer_slope is not None and computer_intercept is None:
             # Mechanical specified slope parameter, used by self.compare()
-#            raise NotImplementedError
-            initial_guess = [1, computer_slope]
-            limits = ([-np.inf, computer_slope-2*np.spacing(1)], [np.inf, computer_slope+np.spacing(1)])
-            dof = 1
+            alpha, beta, num_points, dof, r_squared, stdev, variance, s95_alpha, s95_beta, residual_sum_of_squares = linear_1dof(computer_slope)
         elif computer_slope is not None and computer_intercept is not None:
             # Slope and intercept both specified for self.compare()
-#            raise NotImplementedError
-            # TODO TODO: This is a special case, because there are NO degrees of freedom, so curve_fit will throw a hissy fit
-            initial_guess = (computer_intercept, computer_slope)
-            limits = ([computer_intercept*0.999, computer_slope-2*np.spacing(1)], [computer_intercept*1.001, computer_slope+2*np.spacing(1)])
-            dof = 0
+            alpha, beta, num_points, dof, r_squared, stdev, variance, s95_alpha, s95_beta, residual_sum_of_squares = linear_0dof(computer_slope, computer_intercept)
         elif self.user_thick is not None:
             # The user has specified a thickness of some sort. 
             # No idea what this means or how it influences things
             raise NotImplementedError
         else:
             # No special parameters defined -> DEFAULT CASE
-            initial_guess = [1, 1]
-            limits = (-np.inf, np.inf)
-            dof = 2
-        try:
-            params, cov = scipy.optimize.curve_fit(model, x, y, initial_guess, bounds=limits)
-        except ValueError as e:
-            print(e)
-            print(initial_guess)
-            print(limits)
-            print(self.user_slope)
-            print(computer_slope)
-            print(computer_intercept)
-            return
-        # params: [alpha, beta], the values which minimise least-squares
-        # cov: covariance matrix, the variance of [params] is the diagonal
-        # np.diag(cov)
-        
-        # (section 3.3)
-        # Estimate the variance of the observations y_i around the model
-        residuals = model(x, *params) - y
-        num_points = y.size
-        residual_sum_of_squares = np.sum(np.square(residuals))
-        total_sum_of_squares = np.sum(np.square(y - np.mean(y)))
-        variance = residual_sum_of_squares / (num_points - dof)
-        stdev = np.sqrt(variance)
-        
-        r_squared = 1 - ( residual_sum_of_squares / total_sum_of_squares )
-        
-        # Section 3.4
-        # Confidence intervals for alpha, beta
-        # We get the uncertainty of the params from the diag of the covariance matrix. This is given as sigma
-        alpha, beta = params
-        # We want percentile confidence, not sigma - use the ppf to convert. 
-        s95_alpha, s95_beta = scipy.stats.norm.ppf(1-self.epsilon, 0, 1)*np.sqrt(np.diag(cov))
-        
-        
+            alpha, beta, num_points, dof, r_squared, stdev, variance, s95_alpha, s95_beta, residual_sum_of_squares = linear_2dof()
+
+
         results = {"r_squared": r_squared, "stdev": stdev, "slope": beta,
                    "intercept":10**alpha, "delta_sigma": 10**((alpha - log10_2e6)/-beta),
                    "variance": variance, "points":num_points, "dof": dof, "alpha": alpha,
@@ -277,6 +306,7 @@ class EdnaCalc:
         # Delta-sigma is in units [Mpa]
         
         # Also write some information about the input data to the results
+        # TODO: Update to account for merged reports. 
         results["header_1"] = self.header[data_id][0]
         results["header_2"] = self.header[data_id][1]
         
@@ -360,8 +390,8 @@ class EdnaCalc:
         answer to whether they can be merged
         
         # TODO: Validate that the various statistical tests are implemented correctly. 
+        * Test 1 (Variances equal matches requirements from Edna
         '''
-        #raise NotImplementedError # TODO
         # Handle kwargs
         debug = kwargs.get("debug", False)
         
@@ -372,7 +402,7 @@ class EdnaCalc:
         results1 = self.linear_regression(d_id_1, ignore_merge=True)
         results2 = self.linear_regression(d_id_2, ignore_merge=True)
         
-        # Step 1: test whether the variances can be assumed different or not
+        # TEST 1: test whether the variances can be assumed different or not
         # Section 3.8.1, page 18
         var1 = results1["variance"]
         var2 = results2["variance"]
@@ -382,24 +412,24 @@ class EdnaCalc:
         # Null hypothesis: variances are equal
         # We REJECT the null hypothesis if either statement is True
         # Therefore, we ACCEPT hypothesis if NOT (either statement is True)
-        value = var1/var2
-        test_1_criteria = scipy.stats.f.isf(self.epsilon/2, m_dof1, m_dof2)
-        test_2_criteria = 1/scipy.stats.f.isf(self.epsilon/2, m_dof2, m_dof1)
-        variances_equal = not (value > test_1_criteria) or \
-                                (var1/var2 < test_2_criteria)
+        value_1 = var1/var2
+        test_1_criteria_1 = scipy.stats.f.isf(self.epsilon/2, m_dof1, m_dof2)
+        test_1_criteria_2 = 1/scipy.stats.f.isf(self.epsilon/2, m_dof2, m_dof1)
+        variances_equal = not (value_1 > test_1_criteria_1) or \
+                                (value_1 < test_1_criteria_2)
         if debug:
             print(f"======  Hypothesis 1: Variances are Equal (**{variances_equal}**)  ======")
-            print(f" Value: {value}")
-            print(f" test 1 value: {test_1_criteria}")
-            print(f" test 2 value: {test_2_criteria}")
+            print(f" Value: {value_1}")
+            print(f" test 1 value: {test_1_criteria_1}")
+            print(f" test 2 value: {test_1_criteria_2}")
             print(f" Hypothesis ACCEPTED if NOT:")
-            print(f" ( (value > test_1 [{value > test_1_criteria}]) OR (value < test_2 [{value<test_2_criteria}]) )")
+            print(f" ( (value_1 > test_1 [{value_1 > test_1_criteria_1}]) OR (value_1 < test_2 [{value_1<test_1_criteria_1}]) )")
             print(f" i.e. if both FALSE, then Hypothesis ACCEPTED")
             print("")
             
             
             
-        # Step 2: test whether SN curves are parallel
+        # TEST 2: test whether SN curves are parallel
         # Section 3.8.2, page 20
         temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], ignore_merge=True)
         m_dof2 = temp_results['points'] - temp_results['dof']
@@ -410,15 +440,15 @@ class EdnaCalc:
         # Null hypothesis (1): curves are parallel
         # We REJECT the null hypothesis (1) if the conditional statement is TRUE
         # Therefore, we ACCEPT the null hypothesis (1) if NOT(statement is True)
-        value = ((RSS_H1 - RSS)/RSS) * (m_dof1 + m_dof2)
-        test_3_criteria = scipy.stats.f.isf(self.epsilon, 1, m_dof1 + m_dof2)
-        curves_parallel = not ( value > test_3_criteria )
+        value_2 = ((RSS_H1 - RSS)/RSS) * (m_dof1 + m_dof2)
+        test_2_criteria = scipy.stats.f.isf(self.epsilon, 1, m_dof1 + m_dof2)
+        curves_parallel = not ( value_2 > test_2_criteria )
         
         if debug:
             print(f"======  Hypothesis 2: Curves are Parallel (**{curves_parallel}**)  ======")
-            print(f" Value: {value}")
-            print(f" test 3 value: {test_1_criteria}")
-            print(f" Hypothesis ACCEPTED if NOT (value > test_3_criteria [{value > test_3_criteria}])")
+            print(f" Value: {value_2}")
+            print(f" test 3 value: {test_2_criteria}")
+            print(f" Hypothesis ACCEPTED if NOT (value_2 > test_2_criteria [{value_2 > test_2_criteria}])")
             print(f" i.e. if test is FALSE, then Hypothesis ACCEPTED")
             print("")
         
@@ -427,16 +457,16 @@ class EdnaCalc:
         # Section 3.8.4, page 22
         # Note: this is not the same as curves_parallel AND variances_equal, because
         # that does not respect the confidence interval of the combined test.
-        temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], computer_intercept = results1['intercept'], ignore_merge=True)
+        temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], computer_intercept = np.log10(results1['intercept']), ignore_merge=True)
         m_dof2 = temp_results['points'] - temp_results['dof']
         RSS_H5 = self.Q((results1['intercept'], temp_results['intercept']), (results1['slope'], temp_results['slope']))
         
         # Null hypothesis (5): slope and intercepts are equal
         # We REJECT the null hypothesis (5) if the conditional statement is True
         # We ACCEPT the null hypothesis (5) if NOT(statement is True)
-        value = ((RSS_H5 - RSS)/RSS) * ((m_dof1 + m_dof2)/2)
+        value_4 = ((RSS_H5 - RSS)/RSS) * ((m_dof1 + m_dof2)/2)
         test_4_criteria = scipy.stats.f.isf(self.epsilon, 2, m_dof1+m_dof2)
-        curves_equal = not ( value > test_4_criteria)
+        curves_equal = not ( value_4 > test_4_criteria)
         
         
         if debug:
