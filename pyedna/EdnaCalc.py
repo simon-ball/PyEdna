@@ -215,23 +215,25 @@ class EdnaCalc:
             raise NotImplementedError
 #            limits = ([-np.inf, self.user_slope-2*np.spacing(1)], [np.inf, self.user_slope+2*np.spacing(1)])
 #            initial_guess = [1, self.user_slope]
+        elif computer_slope is not None and computer_intercept is None:
+            # Mechanical specified slope parameter, used by self.compare()
+#            raise NotImplementedError
+            initial_guess = [1, computer_slope]
+            limits = ([-np.inf, computer_slope-2*np.spacing(1)], [np.inf, computer_slope+np.spacing(1)])
+            dof = 1
         elif computer_slope is not None and computer_intercept is not None:
             # Slope and intercept both specified for self.compare()
-            raise NotImplementedError
+#            raise NotImplementedError
             # TODO TODO: This is a special case, because there are NO degrees of freedom, so curve_fit will throw a hissy fit
-#            initial_guess = (computer_intercept, computer_slope)
-#            limits = ([computer_intercept*0.999, computer_slope-2*np.spacing(1)], [computer_intercept*1.001, computer_slope+2*np.spacing(1)])
-#            dof = 0
-
-        elif computer_slope is not None:
-            # Mechanical specified slope parameter, used by self.compare()
-            raise NotImplementedError
-#            initial_guess = [1, computer_slope]
-#            limits = ([-np.inf, computer_slope-2*np.spacing(1)], [np.inf, computer_slope+np.spacing(1)])
-#            dof = 1
+            initial_guess = (computer_intercept, computer_slope)
+            limits = ([computer_intercept*0.999, computer_slope-2*np.spacing(1)], [computer_intercept*1.001, computer_slope+2*np.spacing(1)])
+            dof = 0
         elif self.user_thick is not None:
+            # The user has specified a thickness of some sort. 
+            # No idea what this means or how it influences things
             raise NotImplementedError
         else:
+            # No special parameters defined -> DEFAULT CASE
             initial_guess = [1, 1]
             limits = (-np.inf, np.inf)
             dof = 2
@@ -264,7 +266,6 @@ class EdnaCalc:
         # Confidence intervals for alpha, beta
         # We get the uncertainty of the params from the diag of the covariance matrix. This is given as sigma
         alpha, beta = params
-        sigma_alpha, sigma_beta = np.sqrt(np.diag(cov))
         # We want percentile confidence, not sigma - use the ppf to convert. 
         s95_alpha, s95_beta = scipy.stats.norm.ppf(1-self.epsilon, 0, 1)*np.sqrt(np.diag(cov))
         
@@ -360,7 +361,7 @@ class EdnaCalc:
         
         # TODO: Validate that the various statistical tests are implemented correctly. 
         '''
-        raise NotImplementedError # TODO
+        #raise NotImplementedError # TODO
         # Handle kwargs
         debug = kwargs.get("debug", False)
         
@@ -381,9 +382,23 @@ class EdnaCalc:
         # Null hypothesis: variances are equal
         # We REJECT the null hypothesis if either statement is True
         # Therefore, we ACCEPT hypothesis if NOT (either statement is True)
-        variances_equal = not (var1/var2 > scipy.stats.f.isf(self.epsilon/2, m_dof1, m_dof2)) or \
-                                (var1/var2 < 1/scipy.stats.f.isf(self.epsilon/2, m_dof2, m_dof1))
-
+        value = var1/var2
+        test_1_criteria = scipy.stats.f.isf(self.epsilon/2, m_dof1, m_dof2)
+        test_2_criteria = 1/scipy.stats.f.isf(self.epsilon/2, m_dof2, m_dof1)
+        variances_equal = not (value > test_1_criteria) or \
+                                (var1/var2 < test_2_criteria)
+        if debug:
+            print(f"======  Hypothesis 1: Variances are Equal (**{variances_equal}**)  ======")
+            print(f" Value: {value}")
+            print(f" test 1 value: {test_1_criteria}")
+            print(f" test 2 value: {test_2_criteria}")
+            print(f" Hypothesis ACCEPTED if NOT:")
+            print(f" ( (value > test_1 [{value > test_1_criteria}]) OR (value < test_2 [{value<test_2_criteria}]) )")
+            print(f" i.e. if both FALSE, then Hypothesis ACCEPTED")
+            print("")
+            
+            
+            
         # Step 2: test whether SN curves are parallel
         # Section 3.8.2, page 20
         temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], ignore_merge=True)
@@ -395,7 +410,17 @@ class EdnaCalc:
         # Null hypothesis (1): curves are parallel
         # We REJECT the null hypothesis (1) if the conditional statement is TRUE
         # Therefore, we ACCEPT the null hypothesis (1) if NOT(statement is True)
-        curves_parallel = not (((RSS_H1 - RSS)/RSS) * (m_dof1 + m_dof2) > scipy.stats.f.isf(self.epsilon, 1, m_dof1 + m_dof2))
+        value = ((RSS_H1 - RSS)/RSS) * (m_dof1 + m_dof2)
+        test_3_criteria = scipy.stats.f.isf(self.epsilon, 1, m_dof1 + m_dof2)
+        curves_parallel = not ( value > test_3_criteria )
+        
+        if debug:
+            print(f"======  Hypothesis 2: Curves are Parallel (**{curves_parallel}**)  ======")
+            print(f" Value: {value}")
+            print(f" test 3 value: {test_1_criteria}")
+            print(f" Hypothesis ACCEPTED if NOT (value > test_3_criteria [{value > test_3_criteria}])")
+            print(f" i.e. if test is FALSE, then Hypothesis ACCEPTED")
+            print("")
         
         
         # Step 3: test whether the two curves are _equal_
@@ -409,7 +434,9 @@ class EdnaCalc:
         # Null hypothesis (5): slope and intercepts are equal
         # We REJECT the null hypothesis (5) if the conditional statement is True
         # We ACCEPT the null hypothesis (5) if NOT(statement is True)
-        curves_equal = not ( ((RSS_H5 - RSS)/RSS) * ((m_dof1 + m_dof2)/2) > scipy.stats.f.isf(self.epsilon, 2, m_dof1+m_dof2))
+        value = ((RSS_H5 - RSS)/RSS) * ((m_dof1 + m_dof2)/2)
+        test_4_criteria = scipy.stats.f.isf(self.epsilon, 2, m_dof1+m_dof2)
+        curves_equal = not ( value > test_4_criteria)
         
         
         if debug:
