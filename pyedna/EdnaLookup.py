@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Aug 29 13:19:58 2019
-
-@author: simoba
-"""
+'''
+This is an arbitrary lookup table implemented in old Edna
+No-one has been able to offer an explanation for how the values are calculated,
+and so the full lookup table is recreated here in full
+'''
 import numpy as np
 lookup_table_ddist = np.zeros(101)
 lookup_table_ddist[1] = 10.1
@@ -108,6 +107,9 @@ lookup_table_ddist[98] = 1.84
 lookup_table_ddist[99] = 1.84
 lookup_table_ddist[100] = 1.84
 lookup_table_ddist = lookup_table_ddist[1:]
+# This was easier than modifying every single numebr by 1 when duplicating out
+# of the original Edna, because VB is 1-indexed, and python is 0-indexed. 
+# The end result is an array with a length of 100 (i.e. 0-99)
 
 def ddist(n):
     if n > lookup_table_ddist.size:

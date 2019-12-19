@@ -12,4 +12,4 @@ def start():
     MainWindow()
 
 __all__ = ['TTKTree', 'OutputBox', 'InputDisplay', 'MainWindow', 'EdnaCalc',
-           'GraphWindow', "ddist"]
+           'GraphWindow', "ddist", "format_report"]

@@ -24,8 +24,11 @@ class OutputBox(object):
         self.frame.grid_columnconfigure(0, weight=1, uniform="a")
         self.frame.grid_columnconfigure(1, weight=1, uniform="a")
         self.frame.grid_rowconfigure(3, weight=1)
+        return None
         
     def analyse(self, **kwargs):
+        '''Analyse the selected (or merged) data set, and display results in 
+        quick output box'''
         d_id = self.parent.selected_data
         if d_id is not None:
             outstr = self.parent.calc.format_analysis(d_id)
@@ -33,28 +36,28 @@ class OutputBox(object):
             for line in outstr:
                 self.quick_results.insert("end", line)
         else:
-            # TODO: some form of warning box instead of silently failing
-            print("Select data first")
+            tk.messagebox.showwarning("Select data first")
+        return None
         
     def compare(self, **kwargs):
-        # TODO: currently this raises a error message
-        tk.messagebox.showwarning("Not yet implemented", "This feature is not implemented yet")
-#        d_id1 = self.parent.selected_data
-#        if d_id1 is not None:
-#            d_id2 = 1-d_id1
-#            outstr = self.parent.calc.format_compare(d_id1, d_id2)
-#            self.quick_results.delete(0,"end")
-#            for line in outstr:
-#                self.quick_results.insert("end", line)
-#        else:
-#            # TODO: some kind of warning box
-#            print("Select data first")
-#        print("Compare")
+        '''Compare the two data sets and display results in quick output box'''
+        d_id1 = self.parent.selected_data
+        if d_id1 is not None:
+            d_id2 = 1-d_id1
+            outstr = self.parent.calc.format_compare(d_id1, d_id2)
+            self.quick_results.delete(0,"end")
+            for line in outstr:
+                self.quick_results.insert("end", line)
+        else:
+            tk.messagebox.showwarning("Select data first")
+        return None
         
     def report(self, **kwargs):
+        '''Analyse the selected data and save the resulting report'''
         filename = tk.filedialog.asksaveasfile(mode="w", defaultextension=".docx", filetypes=[("Microsoft Word", ".docx")])
         if not filename:
             # The user cancelled the save file dialog
+            # Do nothing
             pass
         else:
             filename = filename.name
@@ -62,10 +65,13 @@ class OutputBox(object):
             _, data, runout = self.parent.calc.get_data(d_id)
             results = self.parent.calc.linear_regression(d_id)
             pyedna.format_report(filename, data, runout, results)
+        return None
 
         
     def graph(self, **kwargs):
-        graph_control = pyedna.GraphWindow(self.parent)
+        '''Open the graph plotter window'''
+        pyedna.GraphWindow(self.parent)
+        return None
     
     def user_slope(self, event, **kwargs):
         '''If the text can be converted to a number, do that
@@ -80,7 +86,6 @@ class OutputBox(object):
         except:
             self.t_slope.delete('1.0','end')
         self.parent.calc.user_slope = val
-        #print(self.parent.calc.user_slope)
         # return "break" to prevent the trigger (Return) from also causing \n
         return "break"
             
