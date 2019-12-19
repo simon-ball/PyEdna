@@ -131,7 +131,7 @@ class TTKTree(object):
                     self.tree.event_generate('<<TreeviewOpen>>', when="now")
                 else:
                     pass
-            except Exception as e:
+            except Exception:
                 pass
                 
 

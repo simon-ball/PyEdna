@@ -39,10 +39,6 @@ def format_report(report_filename, data, runout, results, *args, **kwargs):
             Defaults to "en_GB": 
                 decimal point is "."
                 thousand separator is ","
-            
-                    
-                
-    
         
     Returns
     -------
@@ -110,6 +106,7 @@ def format_report(report_filename, data, runout, results, *args, **kwargs):
         document.merge_rows("data_stress", data_table)
         document.write(report_filename)
         document.close()
+    return None
     
 if __name__ == "__main__":
     template = "template_report.docx"

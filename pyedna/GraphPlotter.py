@@ -14,22 +14,7 @@ from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 
 
-'''
-Plans:
-    * Remove the figure size control, it's just awkward, and the user can get 
-    coarse control by jsut resizing the window
-    
-    * Add back in the Plot button -> rather than real-time adjustment, I think 
-    it's better to have the user set things up how they like and then press go
-    
-    * better handling of the initial default state :
-        * Define a default dictionary at the start?
-        * Plot the default curves on opening?
-        * Results should probably already be calculated, once, unless Frode 
-            confirms a maximum size on datasets
-    
-    * Tight layout (as part of plot?)
-'''
+
 
 
 
@@ -85,11 +70,9 @@ class GraphWindow(tk.Toplevel):
         self.init_misc()
         self.init_graph()
         self.busy_starting = False
-        #Initialise limit_vars values
-
-        
-        
-        pass
+        return None
+    
+    
  
     def init_values(self):
         '''Initialise the values that the various buttoms will rely on'''
@@ -138,8 +121,10 @@ class GraphWindow(tk.Toplevel):
         self.font_size = tk.IntVar()
         self.font_size.set(12)
         
-        
-    
+        return None
+
+
+
     def init_frames(self):
         '''Initialise the frames that hold the various UI elements
         self.root has a Left and Right frame
@@ -163,10 +148,9 @@ class GraphWindow(tk.Toplevel):
         self.frame_how.grid_columnconfigure(2, weight=1, uniform="how")
         self.frame_misc.grid(row=3, column=0, sticky="nsew", pady=PAD, padx=PAD)
         self.frame_misc.grid_columnconfigure(0, weight=1)
-        
-        
-        pass
-        
+        return None
+
+
     def init_what(self):
         '''Initialise the actual UI elements in the "what" frame
         In this sense, "what" refers to user decisions on what data will be plotted on the graph:
@@ -196,7 +180,9 @@ class GraphWindow(tk.Toplevel):
         
         self.bt_dc_bs540.grid(row=6, sticky="nsw")
         self.bt_dc_ec3.grid(row=7, sticky="nsw")
-        pass
+        return None
+    
+    
     
     def init_how(self):
         '''Initialise the actual UI elements relating to "how"
@@ -263,27 +249,16 @@ class GraphWindow(tk.Toplevel):
                          )
         for i, bt in enumerate(bt_axis_style):
             bt.grid(row=nr+1+i, column=col, sticky="nsw")
-    
-    
-    
 
-    
+        return None
+
+
+
     def init_misc(self):
         '''Initialise figure style handling'''
         # Everything in here is referred to by linekd variables, therefore nothing needs to be added to self
         figstyle_title = tk.Label(self.frame_misc, text="Figure Style", font=FONT)
         figstyle_title.grid(row=0, column=0, columnspan=4, sticky="nsew")
-        
-        # Figure size
-        # This feature has been deprecated
-#        fig_size_x_label = tk.Label(self.frame_misc, text="N (cm)")
-#        fig_size_y_label = tk.Label(self.frame_misc, text="S (cm)")
-#        fig_size_x = tk.Entry(self.frame_misc, textvariable=self.x_size)#, validate="focusout", validatecommand=self.set_graph_size)
-#        fig_size_y = tk.Entry(self.frame_misc, textvariable=self.y_size)#, validate="focusout", validatecommand=self.set_graph_size)
-#        fig_size_x_label.grid(row=2, column=0, sticky="nsw")
-#        fig_size_x.grid(row=2, column=1, sticky="nsw")
-#        fig_size_y_label.grid(row=2, column=2, sticky="nsw")
-#        fig_size_y.grid(row=2, column=3, sticky="nsw")
         
         lim_xmin_label = tk.Label(self.frame_misc, text="N (min)")
         lim_xmax_label = tk.Label(self.frame_misc, text="N (max)")
@@ -315,8 +290,8 @@ class GraphWindow(tk.Toplevel):
         self.btn_plot = tk.Button(self.frame_left, text="Plot SN curve", font=FONT, command=self.plot_curve, state="normal")
         self.btn_plot.grid(row=4, column=0, sticky="nsew", pady=PAD, padx=PAD)
         
-        # 
-        pass
+        return None
+    
     
     def init_graph(self):
         '''based on https://matplotlib.org/3.1.0/gallery/user_interfaces/embedding_in_tk_sgskip.html'''
@@ -334,7 +309,9 @@ class GraphWindow(tk.Toplevel):
         self.ax.set_xlabel("N [cycles]")
         self.ax.set_ylabel("S [MPa]")
         self.ax.set_title('Fatigue Lifecycle')
-        # TODO: Also set some other style information here even prior to plotting?
+        
+        return None
+    
     
     def btn_axis_limits_changed(self, *args, **kwargs):
         '''Possible values are: "steel", "aluminium", "n", "s", "auto", "manual".
@@ -370,6 +347,8 @@ class GraphWindow(tk.Toplevel):
         for i in range(4):
             self.limit_entries[i].config(state=states[i])
             self.limit_vars[i].set(lims[i])
+        
+        return None
 
         
         
@@ -378,6 +357,7 @@ class GraphWindow(tk.Toplevel):
         (x, y) = self.fig.get_size_inches()
         self.x_size.set(x * INCH2CM)
         self.y_size.set(y * INCH2CM)
+        return None
     
     def set_graph_size(self, *args, **kwargs):
         '''callback when graph size setting changed'''
@@ -391,6 +371,7 @@ class GraphWindow(tk.Toplevel):
             x = self.x_size.get() / INCH2CM
             y = self.y_size.get() / INCH2CM
             self.fig.set_size_inches(x, y)
+        return None
     
     ##########################################################################
     ###############     FUNCTIONAL CODE HERE
@@ -423,11 +404,14 @@ class GraphWindow(tk.Toplevel):
             # update the axis limit text boxes
             for i in range(4):
                 # Round to a nice number
-                #self.limit_vars[i].set(10**round(int(np.log10(new_limits[i]))))
                 self.limit_vars[i].set(int(new_limits[i]))
             self.refresh_graph()
         else:
+            # This should only be used for debugging purposes, where the graph_plotter
+            # is initialised without a parent window
             print("Plot! \n" + str(kwargs)) 
+            
+        return None
     
     def get_axis_limits(self):
         '''This is distinct from the button function above in that it sends None values
@@ -451,6 +435,7 @@ class GraphWindow(tk.Toplevel):
     def refresh_graph(self, *args, **kwargs):
         self.fig.tight_layout()
         self.graph.draw()
+        return None
             
             
 if __name__ == "__main__":

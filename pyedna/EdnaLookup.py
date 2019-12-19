@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Aug 29 13:19:58 2019
-
-@author: simoba
-"""
+'''
+This is an arbitrary lookup table implemented in old Edna
+No-one has been able to offer an explanation for how the values are calculated,
+and so the full lookup table is recreated here in full
+'''
 import numpy as np
 lookup_table_ddist = np.zeros(101)
 lookup_table_ddist[1] = 10.1

@@ -55,42 +55,71 @@ class EdnaCalc:
         runout is a 1D array giving 1 at any row of data in which the runout
         marker was detected. 
         
-        TODO: There may need to be some secondary marker for keeping track of thickness in here???
+        Parameters
+        ----------
+        file_path : path
+            Path to a data file. 
+            Format (unless overruled in kwargs):
+                2 lines of header
+                Comma separated
+                column 0 is stress
+                column 1 is cycles
+                Runouts are denominated with a *
+        data_id : int
+            ID for the data set. Valid values are 0 or 1. 
+        kwargs
+            delim: str
+                Data delimiter. Default "," (i.e. comma-separated variable)
+            runout_marker : str
+                Marker used to denote a row as a Runout. Default "*". Use of a
+                marker that is a valid character in a floating point number 
+                (i.e. -, +, . etc) is not valid
+            header : int
+                Number of lines of header information. Default 2.
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        ValueError
         '''
         delim = kwargs.get("delimiter", ",")
         runout_marker = kwargs.get("runout", "*")
-        header = kwargs.get("header_lines", 2)
-        runout_markers = ("*", "^", "&")
+        header_lines = kwargs.get("header_lines", 2)
+        
+        if runout_marker in ("-", "+", "=", ".", ","):
+            raise ValueError(f"A runout marker of '{runout_marker}' is not"\
+                             " valid. Use a character that is not a valid"\
+                             " component of a number.")
 
-        if runout_marker in runout_markers:
-            data_str = np.genfromtxt(file_path, delimiter=delim, skip_header=header, usecols=(0,1), dtype=str)
-            data = np.zeros(data_str.shape)
-            runout = np.zeros(np.max(data.shape))
-            for i, val in enumerate(data_str[:,0]):
-                try:
-                    data[i,:] = data_str[i,:].astype(np.float)
-                    
-                except ValueError:
-                    runout[i] = 1
-                    data[i,0] = np.float(data_str[i,0][1:])
-                    data[i,1] = np.float(data_str[i,1])
-            if (data<0).any():
-                raise ValueError("A negative number was detected. Please check"\
-                        " that you have set the correct runout indicator."\
-                        f" PyEdna currently expects one of {runout_markers}")
-            # Now get the header information that Numpy skipped
-            with open(file_path) as file:
-                line1 = file.readline().strip()
-                line2 = file.readline().strip()
-                header = (line1, line2)
-        else:
-            raise NotImplementedError("Currently, the only supported runout"\
-              f" indicators are {runout_markers}. You requested runout indicator"\
-              f" '{runout}'")
+        data_str = np.genfromtxt(file_path, delimiter=delim, skip_header=header_lines, usecols=(0,1), dtype=str)
+        data = np.zeros(data_str.shape)
+        runout = np.zeros(np.max(data.shape))
+        for i, val in enumerate(data_str[:,0]):
+            try:
+                data[i,:] = data_str[i,:].astype(np.float)
+                
+            except ValueError:
+                runout[i] = 1
+                data[i,0] = np.float(data_str[i,0][1:])
+                data[i,1] = np.float(data_str[i,1])
+        if (data<0).any():
+            raise ValueError("A negative number was detected. Please check"\
+                    " that you have set the correct runout indicator."\
+                    f" PyEdna currently expects {runout_marker}")
+        # Now get the header information that Numpy skipped
+        with open(file_path) as file:
+            header = []
+            for i in range(header_lines):
+                line_n = file.readline().strip()
+                header.append(line_n)
         
         self.data[data_id] = data
         self.runout[data_id] = runout.astype(bool)
         self.header[data_id] = header
+        return None
 
 
 
@@ -192,6 +221,10 @@ class EdnaCalc:
             ignore_merge : float
                 Used by the compare() function to enforce ignoring the merge flag. The user should never manually configure this value
         
+        Returns
+        -------
+        results : dict
+            Dictionary of results and associated statistics
         '''
         # Handle kwargs
         debug = kwargs.get("debug", False)
@@ -405,8 +438,23 @@ class EdnaCalc:
         Compare two different data sets for compatibility, to give a yes/no 
         answer to whether they can be merged
         
-        # TODO: Validate that the various statistical tests are implemented correctly. 
-        * Test 1 (Variances equal matches requirements from Edna
+        Parameters
+        ----------
+        d_id_1 : int
+        d_id_2 : int
+            Which datasets to compare. Datasets must have already been loaded.
+        
+        Returns
+        -------
+        variances_equal : bool
+            Is it correct to accept the hypothesis that the variances of the
+            two datasets are equal?
+        curves_parallel : bool
+            Is it correct to accept the hypothesis that the two datasets are
+            parallel?
+        curves_equal : bool
+            Is it correct to accept the hypothesis that the two datasets are
+            simultaneously parallel and have consistent variances?
         '''
         # Handle kwargs
         debug = kwargs.get("debug", False)
@@ -460,7 +508,7 @@ class EdnaCalc:
         # We REJECT the null hypothesis (1) if the conditional statement is TRUE
         # Therefore, we ACCEPT the null hypothesis (1) if NOT(statement is True)
         value_2 = ((RSS_H1 - RSS)/RSS) * (m_dof1 + m_dof2)
-        test_2_criteria = scipy.stats.f.isf(self.epsilon/2, 1, m_dof1 + m_dof2 -1) # should this be epsilon/2 ??
+        test_2_criteria = scipy.stats.f.isf(self.epsilon/2, 1, m_dof1 + m_dof2 -1) 
         curves_parallel = not ( value_2 > test_2_criteria )
         
         if debug:
@@ -585,7 +633,7 @@ class EdnaCalc:
             Matplotlib line style codes. Valid values are "-", "--", "-.", ":"
             Default is "-"
         axis_limits : list
-            (min n, max n, min s, max s)  
+            ((min n, max n), (min s, max s))  
         log_y : boolean
             Plot the Y axis (s) as a log or not
         grid_major : boolean
@@ -620,7 +668,8 @@ class EdnaCalc:
             
         Returns
         -------
-        None
+        list
+            Actual axis limits, in the form ((x_min, x_max), (y_min, y_max))
         '''
         ##########################################################
         ############    Handle args and kwargs
@@ -706,10 +755,6 @@ class EdnaCalc:
             log_n = alpha + (gradient * log_s)
             n = 10**log_n
             return n, s
-#            if label is not None:
-#                ax.plot(n, s, linestyle=curve_linestyle, label=label)
-#            else:
-#                ax.plot(n, s, linestyle=curve_linestyle)
         
         ##########################################################
         ############    plot the graph
@@ -773,5 +818,3 @@ class EdnaCalc:
         # and return them to the calling program (probably GraphPlotter)
         actual_limits = *ax.get_xlim(), *ax.get_ylim()
         return actual_limits
-        
-        
