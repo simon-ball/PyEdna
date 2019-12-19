@@ -13,3 +13,5 @@ def start():
 
 __all__ = ['TTKTree', 'OutputBox', 'InputDisplay', 'MainWindow', 'EdnaCalc',
            'GraphWindow', "ddist", "format_report"]
+
+__version__ = '1.0.0'
