@@ -9,12 +9,6 @@ from pathlib import Path
 import locale
 
 
-
-
-
-
-
-
 def format_report(report_filename, data, runout, results, *args, **kwargs):
     ''' Format the results of a linear regression analysis into a prepared
     template
