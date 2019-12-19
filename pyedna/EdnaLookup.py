@@ -107,6 +107,9 @@ lookup_table_ddist[98] = 1.84
 lookup_table_ddist[99] = 1.84
 lookup_table_ddist[100] = 1.84
 lookup_table_ddist = lookup_table_ddist[1:]
+# This was easier than modifying every single numebr by 1 when duplicating out
+# of the original Edna, because VB is 1-indexed, and python is 0-indexed. 
+# The end result is an array with a length of 100 (i.e. 0-99)
 
 def ddist(n):
     if n > lookup_table_ddist.size:
