@@ -418,6 +418,11 @@ class EdnaCalc:
         results1 = self.linear_regression(d_id_1, ignore_merge=True)
         results2 = self.linear_regression(d_id_2, ignore_merge=True)
         
+        previous_state = self.merge
+        self.merge = True
+        joint_results = self.linear_regression(-1, ignore_merge=False)
+        self.merge = previous_state
+        
         # TEST 1: test whether the variances can be assumed different or not
         # Section 3.8.1, page 18
         var1 = results1["variance"]
@@ -447,16 +452,15 @@ class EdnaCalc:
             
         # TEST 2: test whether SN curves are parallel
         # Section 3.8.2, page 20
-        temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], ignore_merge=True)
-        #m_dof2 = temp_results['points'] - temp_results['dof']
+        # Compare the individual cases to the joint case, i.e. the slope is the same for both 
         RSS = self.Q((results1['intercept'], results2['intercept']), (results1['slope'], results2['slope']))
-        RSS_H1 = self.Q((results1['intercept'], temp_results['intercept']), (results1['slope'], temp_results['slope']))
+        RSS_H1 = self.Q((results1['intercept'], results2['intercept']), (joint_results['slope'], joint_results['slope']))
         
         # Null hypothesis (1): curves are parallel
         # We REJECT the null hypothesis (1) if the conditional statement is TRUE
         # Therefore, we ACCEPT the null hypothesis (1) if NOT(statement is True)
         value_2 = ((RSS_H1 - RSS)/RSS) * (m_dof1 + m_dof2)
-        test_2_criteria = scipy.stats.f.isf(self.epsilon, 1, m_dof1 + m_dof2) # should this be epsilon/2 ??
+        test_2_criteria = scipy.stats.f.isf(self.epsilon/2, 1, m_dof1 + m_dof2 -1) # should this be epsilon/2 ??
         curves_parallel = not ( value_2 > test_2_criteria )
         
         if debug:
@@ -472,8 +476,10 @@ class EdnaCalc:
         # Section 3.8.4, page 22
         # Note: this is not the same as curves_parallel AND variances_equal, because
         # that does not respect the confidence interval of the combined test.
+        # Recalculate the "linear regression" for *2*, where both the *slope* and *intercept* are set equal to *1*
+        # This is not actually a linear regression, because there are no free parameters. 
         temp_results = self.linear_regression(d_id_2, computer_slope=results1['slope'], computer_intercept = np.log10(results1['intercept']), ignore_merge=True)
-        #m_dof2 = temp_results['points'] - temp_results['dof']
+        m_dof2 = results2['points'] - results2['dof']
         RSS_H5 = self.Q((results1['intercept'], temp_results['intercept']), (results1['slope'], temp_results['slope']))
         
         # Null hypothesis (5): slope and intercepts are equal
