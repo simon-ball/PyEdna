@@ -713,37 +713,17 @@ class EdnaCalc:
         
         ##########################################################
         ############    plot the graph
-        
-        if plot_points:
-            ax.scatter(N, S, marker=marker, label="Data")
-            rl = None
-            for i, is_runout in enumerate(runout):
-                if is_runout:
-                    # handle any runout points by plotting an arrow from the marker 
-                    # pointing to top right
-                    # Want these arrows to appear the same regardless of where on the graph they are
-                    # And regardless of whether using a log or linear scale
-                    start_x, start_y = N[i], S[i]                    
-                    len_x = start_x * 0.5
-                    if log_y:
-                        len_y = start_y * 0.1
-                    else:
-                        if rl is None:
-                            rl = axis_limits[2] * 0.2
-                        len_y = rl
-                    
-                    ax.annotate("", xy=(start_x+len_x, start_y+len_y), xytext=(start_x, start_y), arrowprops=dict(arrowstyle="->"))
+        # Plotting the base points is deliberately done LAST, because that has a dependence on
+        # the automatic limits of the plot. 
                     
         curve_s = np.array([1*np.min(S), 1*np.max(S)])
         if plot_regression:
             n, s = calculate_curve(results["intercept"], results["slope"], curve_s)
             ax.plot(n, s, linestyle=line_style, label="Regression")
 
-            
         if plot_points_conf:
             # 95% confidence interval for given value of S
-            raise NotImplementedError
-            
+            raise NotImplementedError            
         
         if plot_regression_conf:
             # 95%% conf. for given value of S
@@ -764,6 +744,27 @@ class EdnaCalc:
             # Plot design curves for EC3
             n, s = calculate_curve(results["dc_ec3_intercept"], results["slope"], curve_s)
             ax.plot(n, s, linestyle=line_style, label="EC3")
+            
+        if plot_points:
+            # Main data points
+            ax.scatter(N, S, marker=marker, label="Data")
+            rl = None
+            for i, is_runout in enumerate(runout):
+                if is_runout:
+                    # handle any runout points by plotting an arrow from the marker 
+                    # pointing to top right
+                    # Want these arrows to appear the same regardless of where on the graph they are
+                    # And regardless of whether using a log or linear scale
+                    start_x, start_y = N[i], S[i]                    
+                    len_x = start_x * 0.5
+                    if log_y:
+                        len_y = start_y * 0.1
+                    else:
+                        if rl is None:
+                            rl = ax.get_ylim()[0] * 0.2
+                        len_y = rl
+                    ax.annotate("", xy=(start_x+len_x, start_y+len_y), xytext=(start_x, start_y), arrowprops=dict(arrowstyle="->"))
+            
         if plot_legend:
             ax.legend(fontsize=font)
         
