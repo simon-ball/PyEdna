@@ -28,7 +28,7 @@ class MainWindow(object):
         
     def init_values(self):
         # Working folder: start in the user folder. This should be OS agnostic
-        self.folder = os.environ["USERPROFILE"] or os.path.join(os.environ['HOMEDRIVE'], os.environ['HOMEPATH'])
+        self.folder = pathlib.Path.home()
         self.have_data1 = False
         self.have_data2 = False
         self.calc = pyedna.EdnaCalc(self)
