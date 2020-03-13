@@ -592,16 +592,17 @@ class EdnaCalc:
             d_id +=1
         outstr = (f"=== Data {d_id} ===" ,
                 f"R squared:  {rsq:3g}",
-                f"Std. Dev:  {stdev:3g}", 
+                f"Model Std. Dev:  {stdev:3g}", 
                 f"Slope:  {slope:3g}",
-                f"Intercept:  {intercept:3g}",
-                f"Delta Sigma (2e6):  {ds:3g}",
+                f"Log(10) Intercept:  {np.log10(intercept):3g}",
+                f"Stress Range at N=2e6 (MPa):  {ds:3g}",
                 "",
-                f"Design Curve",
-                f"Intercept C: {results['dc_bs540_intercept']:3g}",
-                f"Delta Sigma (2E6): {results['dc_bs540_delta_sigma']:3g}",
-                f"Intercept C: {results['dc_ec3_intercept']:3g}",
-                f"Delta Sigma (2E6): {results['dc_ec3_delta_sigma']:3g}",)
+                f"Design Curve (BS540)",
+                f"Log(10) Intercept: {np.log10(results['dc_bs540_intercept']):3g}",
+                f"Stress Range at N=2e6 (MPa): {results['dc_bs540_delta_sigma']:3g}",
+                f"Design Curve (EC3)",
+                f"log(10) Intercept: {np.log10(results['dc_ec3_intercept']):3g}",
+                f"Stress Range at N=2e6 (MPa): {results['dc_ec3_delta_sigma']:3g}",)
         return outstr
     
     
