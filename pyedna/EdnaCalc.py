@@ -285,13 +285,16 @@ class EdnaCalc:
 
 
         def linear_1dof(fixed_slope):
-            '''Implement a linear regression on 1DOF, where the curve slope is fixed'''
+            '''Implement a linear regression on 1DOF, where the curve slope is fixed
+            In this case, alpha is returned as a 1-element numpy array, so need to extract from it'''
             def model(x, alpha):
                 '''Simple linear model'''
                 return alpha + (fixed_slope*x)
             dof = 1
             beta = fixed_slope
             alpha, cov = scipy.optimize.curve_fit(model, x, y)
+            assert(alpha.size == 1)
+            alpha = alpha[0]
             residuals = model(x, alpha) - y
             
             num_points = y.size
@@ -769,8 +772,10 @@ class EdnaCalc:
         # Plotting the base points is deliberately done LAST, because that has a dependence on
         # the automatic limits of the plot. 
                     
-        curve_s = np.array([1*np.min(S), 1*np.max(S)])
-        curve_n, _ = calculate_curve_by_s(results["intercept"], results["slope"], curve_s)
+        #curve_s = np.array([1*np.min(S), 1*np.max(S)])
+        #curve_n, _ = calculate_curve_by_s(results["intercept"], results["slope"], curve_s)
+        curve_n = np.array([1*np.min(N), 1*np.max(N)])
+        _, curve_s = calculate_curve_by_n(results["intercept"], results["slope"], curve_n)
         if plot_regression:
             ax.plot(curve_n, curve_s, linestyle=line_style, label="Regression")
 

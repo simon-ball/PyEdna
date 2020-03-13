@@ -13,10 +13,10 @@ class OutputBox(object):
         self.b_report.grid(row=0, column=1, sticky="nsew")
         self.b_graph = tk.Button(self.frame, text="Graph", command=self.graph, state="disabled")
         self.b_graph.grid(row=1, column=1, sticky="nsew")
-        self.l_slope = tk.Label(self.frame, text="Slope")
+        self.l_slope = tk.Label(self.frame, text="Fix slope")
         self.l_slope.grid(row=2, column=0, sticky="nsew")
         self.t_slope = tk.Text(self.frame, width=10,height=1, wrap="none")
-        self.t_slope.bind("<Return>", self.user_slope)
+        self.t_slope.bind("<FocusOut>", self.user_slope)
         self.t_slope.grid(row=2, column=1, sticky="nsew")
         self.quick_results = tk.Listbox(self.frame)
         self.quick_results.grid(row=3, column=0, columnspan=2, sticky="nsew")
@@ -86,6 +86,7 @@ class OutputBox(object):
         except:
             self.t_slope.delete('1.0','end')
         self.parent.calc.user_slope = val
+        print(self.parent.calc.user_slope, type(self.parent.calc.user_slope))
         # return "break" to prevent the trigger (Return) from also causing \n
         return "break"
             
