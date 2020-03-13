@@ -748,12 +748,19 @@ class EdnaCalc:
         if grid_minor:
             ax.grid(which="minor", ls=":", color="black")
 
-        def calculate_curve(intercept, gradient, s):
+        def calculate_curve_by_s(intercept, gradient, s):
             '''Calculate N, S values to plot the requested curve'''
             alpha = np.log10(intercept)
             log_s = np.log10(s)
             log_n = alpha + (gradient * log_s)
             n = 10**log_n
+            return n, s
+        
+        def calculate_curve_by_n(intercept, gradient, n):
+            alpha = np.log10(intercept)
+            log_n = np.log10(n)
+            log_s = (log_n - alpha)/gradient
+            s = 10**log_s
             return n, s
         
         ##########################################################
@@ -762,9 +769,9 @@ class EdnaCalc:
         # the automatic limits of the plot. 
                     
         curve_s = np.array([1*np.min(S), 1*np.max(S)])
+        curve_n, _ = calculate_curve_by_s(results["intercept"], results["slope"], curve_s)
         if plot_regression:
-            n, s = calculate_curve(results["intercept"], results["slope"], curve_s)
-            ax.plot(n, s, linestyle=line_style, label="Regression")
+            ax.plot(curve_n, curve_s, linestyle=line_style, label="Regression")
 
         if plot_points_conf:
             # 95% confidence interval for given value of S
@@ -775,19 +782,19 @@ class EdnaCalc:
             # Modify the intercept argument given to curve()
             # Second curve is not labelled to avoid duplicating labels in legend
             label = f"{results['confidence_interval']*100:n}% for regression"
-            n1, s1 = calculate_curve(results["c_upper"], results["slope"], curve_s)
-            n2, s2 = calculate_curve(results["c_lower"], results["slope"], curve_s)
+            n1, s1 = calculate_curve_by_n(results["c_upper"], results["slope"], curve_n)
+            n2, s2 = calculate_curve_by_n(results["c_lower"], results["slope"], curve_n)
             ax.plot(n1, s1, linestyle="--", label=label, color="C4")
             ax.plot(n2, s2, linestyle="--", color="C4")
         
         if plot_dc_bs540:
             # Plot design curves for BS540, NS3472
-            n, s = calculate_curve(results["dc_bs540_intercept"], results["slope"], curve_s)
+            n, s = calculate_curve_by_n(results["dc_bs540_intercept"], results["slope"], curve_n)
             ax.plot(n, s, linestyle=line_style, label="BS540, NS3472")
         
         if plot_dc_ec3:
             # Plot design curves for EC3
-            n, s = calculate_curve(results["dc_ec3_intercept"], results["slope"], curve_s)
+            n, s = calculate_curve_by_n(results["dc_ec3_intercept"], results["slope"], curve_n)
             ax.plot(n, s, linestyle=line_style, label="EC3")
             
         if plot_points:
