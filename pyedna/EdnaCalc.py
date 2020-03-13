@@ -721,7 +721,6 @@ class EdnaCalc:
         if log_y:
             ax.set_yscale("log")
             ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
-            ax.yaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, pos: '%s' % (str(x)[0] if int(str(x)[0]) < 6 else '')))
         else:
             ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:6.0f}'))
 
@@ -732,6 +731,8 @@ class EdnaCalc:
             ax.set_xlim(*x_axis_limits)
         if y_axis_limits is not None:
             ax.set_ylim(*y_axis_limits)
+        else:
+            ax.set_ylim(10, 1000)
         
         # Set font size
         ax.yaxis.label.set_fontsize(font)
