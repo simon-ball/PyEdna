@@ -37,6 +37,6 @@ setup(
     package_data={"":["template_report.docx"]},
     include_package_data=True,
     url='https://github.com/simon-ball/PyEdna',
-    version='1.0.0',
+    version='1.1.0',
     zip_safe=False,
 )

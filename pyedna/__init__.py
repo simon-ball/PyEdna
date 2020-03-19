@@ -13,4 +13,4 @@ def start():
 __all__ = ['OutputBox', 'InputDisplay', 'MainWindow', 'EdnaCalc',
            'GraphWindow', "ddist", "format_report"]
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
