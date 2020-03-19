@@ -14,7 +14,7 @@ import pyedna
 
 PAD_X = 5
 PAD_Y = 5
-SUFFIX = '.sn'
+SUFFIX = 'sn'
 TITLE = "PyEdna"
 
 
@@ -44,7 +44,6 @@ class MainWindow(object):
         self.upper = tk.Frame(self.root, height=150)
         self.upper_1 = tk.Frame(self.upper, padx=PAD_X)
         self.upper_2 = tk.Frame(self.upper, padx=PAD_X)
-        self.upper_3 = tk.Frame(self.upper, padx=PAD_X)
         self.lower = tk.Frame(self.root, height=150, pady=PAD_Y)
         self.lower_1 = tk.Frame(self.lower, padx=PAD_X)
         self.lower_2 = tk.Frame(self.lower, padx=PAD_X)
@@ -53,31 +52,31 @@ class MainWindow(object):
         # First, the three upper frame
         # Two more complicated elements are defined in separate classes
         self.main_title = tk.Label(self.upper_1, text="Stress-Life Test", font="-size 18")
-        self.main_title.grid(row=0, column=0, sticky="n")
-        self.upper_tree = pyedna.TTKTree(self, self.upper_1) # define more complicated element in a separate class
+        self.main_title.grid(row=0, column=0,columnspan=2, sticky="n")
         self.b_directory = tk.Button(self.upper_1, text="Find Directory", command=self.button_load_directory)
-        self.b_directory.grid(row=3,column=0,sticky="nsew")
+        self.b_directory.grid(row=10,column=0,columnspan=2,sticky="nsew")
+        self.upper_files = tk.Listbox(self.upper_1, selectmode="single")
+        self.upper_files.grid(row=20, column=0, columnspan=2, sticky="nsew")  
         
-        self.upper_files_title = tk.Label(self.upper_2, text="Data files")
-        self.upper_files_title.grid(row=0, column=0, columnspan=2, sticky="nsew")
-        self.b_merge = tk.Button(self.upper_2, text="Merge", command=self.button_merge, state="disabled", relief="raised")
-        self.b_merge.grid(row=1,column=0,columnspan=2, sticky="nsew")
-        self.b_load1 = tk.Button(self.upper_2, text="Set 1", command=self.button_load1, state="disabled")
-        self.b_load1.grid(row=2, column=0, sticky="nsew")
-        self.b_load2 = tk.Button(self.upper_2, text="Set 2", command=self.button_load2, state="disabled")
-        self.b_load2.grid(row=2, column=1, sticky="nsew")
-        self.upper_files = tk.Listbox(self.upper_2, selectmode="single")
-        self.upper_files.grid(row=3, column=0, columnspan=2, sticky="nsew")  
-        self.upper_2.grid_rowconfigure(3, weight=1) # allow this element to grow heightwise
-        self.upper_2.grid_columnconfigure(0, weight=1)
-        self.upper_2.grid_columnconfigure(1, weight=1)
+        self.b_load1 = tk.Button(self.upper_1, text="Load as set 1", command=self.button_load1, state="disabled")
+        self.b_load1.grid(row=30, column=0, sticky="nsew")
+        self.b_load2 = tk.Button(self.upper_1, text="Load as set 2", command=self.button_load2, state="disabled")
+        self.b_load2.grid(row=30, column=1, sticky="nsew")
         
-        self.upper_results = pyedna.OutputBox(self, self.upper_3)
+
+        self.b_merge = tk.Button(self.upper_1, text="Merge", command=self.button_merge, state="disabled", relief="raised")
+        self.b_merge.grid(row=40,column=0,columnspan=2, sticky="nsew")
+        
+        
+        self.upper_1.grid_rowconfigure(3, weight=1) # allow this element to grow heightwise
+        self.upper_1.grid_columnconfigure(0, weight=1)
+        self.upper_1.grid_columnconfigure(1, weight=1)
+        
+        self.upper_results = pyedna.OutputBox(self, self.upper_2)
         
         # Now that the widgets are in the 3 upper frames, arrrange the 3 upper frames within the "outer" upper frame
         self.upper_1.grid(row=0, column=0, sticky="nsew")
-        self.upper_2.grid(row=0, column=1, sticky="nsew")        
-        self.upper_3.grid(row=0, column=2, sticky="nsew")
+        self.upper_2.grid(row=0, column=1, sticky="nsew")
 
         # Now insert widgets into the lower "inner" frames
         self.lower_data1 = pyedna.InputDisplay(self, self.lower_1, "Data 1", 0)
@@ -92,7 +91,6 @@ class MainWindow(object):
         self.upper.grid_rowconfigure(0, weight=1)
         self.upper.grid_columnconfigure(0, weight=1)
         self.upper.grid_columnconfigure(1, weight=1)
-        self.upper.grid_columnconfigure(2, weight=1)
         self.lower.grid(row=1, column=0, rowspan=1, sticky="nsew")
         self.lower.grid_rowconfigure(0, weight=1)
         self.lower.grid_columnconfigure(0, weight=1)
@@ -113,14 +111,10 @@ class MainWindow(object):
     ###########################################################################
 
     def button_load_directory(self, **kwargs):
-        # This should open a directory search box, and both expand the tree to 
-        # that location and load that directory same as choosing a directory in
-        # the tree
-        # TODO: expanding tree to desired location
+        '''Open a directory search box'''
         self.folder = pathlib.Path(filedialog.askdirectory())
         try:
             self.load_directory()
-            self.upper_tree.go_to_selected_folder(self.folder)
         except IndexError:
             # This happens if the file dialog is closed without selection
             self.folder = None
@@ -159,10 +153,8 @@ class MainWindow(object):
     
     def load_directory(self, **kwargs):
         self.upper_files.delete(0,"end") # Remove previous contents
-        items = os.listdir(self.folder)
-        test_files = [f for f in items if "."+f.split(".")[-1] in SUFFIX]
-        for f in test_files:
-            self.upper_files.insert("end", f)
+        for f in self.folder.glob(f"*.{SUFFIX}"):
+            self.upper_files.insert("end", f.name)
         pass
 
     
@@ -218,10 +210,10 @@ class MainWindow(object):
         # construct the full filepath
         index = self.upper_files.curselection()[0]
         file_name = self.upper_files.get(index)
-        full_file_name = os.path.join(self.folder, file_name)
+        file_path = self.folder / file_name
         
         # Read the data file into the calculator: this extracts the actual data as numbers
-        self.calc.load_data(full_file_name, data_id)
+        self.calc.load_data(file_path, data_id)
         
         # Read the data file into the GUI - note this is ONLY for display, 
         # the text in the GUI is never used for calculations        
@@ -230,9 +222,9 @@ class MainWindow(object):
         # Store the full file path as a copiable string for the user
         destination.path.config(state="normal")
         destination.path.delete('1.0','end') # wierdly, Text widgets first index is '1.0', not 0
-        destination.path.insert("end", full_file_name)
+        destination.path.insert("end", file_path.name)
         destination.path.config(state="disabled")
-        with open(full_file_name, "r") as f:
+        with open(file_path, "r") as f:
             for line in f.readlines():
                 line = line.strip()
                 destination.data.insert("end", line)

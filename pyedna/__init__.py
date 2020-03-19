@@ -1,4 +1,3 @@
-from pyedna.TTKTree import TTKTree
 from pyedna.OutputBox import OutputBox
 from pyedna.InputDisplay import InputDisplay
 from pyedna.MainWindow import MainWindow
@@ -11,7 +10,7 @@ from pyedna.ReportFormatter import format_report
 def start():
     MainWindow()
 
-__all__ = ['TTKTree', 'OutputBox', 'InputDisplay', 'MainWindow', 'EdnaCalc',
+__all__ = ['OutputBox', 'InputDisplay', 'MainWindow', 'EdnaCalc',
            'GraphWindow', "ddist", "format_report"]
 
 __version__ = '1.0.0'
